@@ -9,6 +9,7 @@ import DashboardSection from './pages/DashboardSection';
 import FeedbackManager from './pages/FeedbackManager';
 import UserManager from './pages/UserManager';
 import MachineManager from './pages/MachineManager';
+import MaintenanceManager from './pages/MaintenanceManager';
 
 function App() {
 
@@ -30,15 +31,14 @@ function App() {
                 >
                     <Route index element={<DashboardSection />} />
                     <Route path="users" element={<ProtectedRoute allowedRoles={['ADMIN']}><UserManager /></ProtectedRoute>} />
-                    <Route path="machines" element={<DashboardSection section="machines" />} />
+                    <Route path="machines" element={<MachineManager />} />
                     <Route path="bookings" element={<DashboardSection section="bookings" />} />
                     <Route path="feedback" element={<ProtectedRoute allowedRoles={['ADMIN', 'CUSTOMER']}><FeedbackManager /></ProtectedRoute>} />
                     <Route path="jobs" element={<ProtectedRoute allowedRoles={['OPERATOR']}><DashboardSection section="jobs" /></ProtectedRoute>} />
-                    <Route path="maintenance" element={<ProtectedRoute allowedRoles={['OPERATOR']}><DashboardSection section="maintenance" /></ProtectedRoute>} />
+                    <Route path="maintenance" element={<ProtectedRoute allowedRoles={['ADMIN', 'OPERATOR']}><MaintenanceManager /></ProtectedRoute>} />
                     <Route path="payments" element={<ProtectedRoute allowedRoles={['FINANCE_OFFICER']}><DashboardSection section="payments" /></ProtectedRoute>} />
                     <Route path="invoices" element={<ProtectedRoute allowedRoles={['FINANCE_OFFICER']}><DashboardSection section="invoices" /></ProtectedRoute>} />
                     <Route path="reports" element={<ProtectedRoute allowedRoles={['FINANCE_OFFICER']}><DashboardSection section="reports" /></ProtectedRoute>} />
-                    <Route path="machines" element={<MachineManager />} />
                 </Route>
 
                 {/* Catch-all route to handle 404s */}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { getAllMachines, addMachine } from '../services/machineService';
 
@@ -9,18 +9,18 @@ const MachineManager = () => {
     const [serialNumber, setSerialNumber] = useState('');
     const [message, setMessage] = useState('');
 
-    useEffect(() => {
-        loadMachines();
-    }, []);
-
-    const loadMachines = async () => {
+    const loadMachines = useCallback(async () => {
         try {
             const data = await getAllMachines();
             setMachines(data);
         } catch (error) {
             console.error("Failed to load machines", error);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        loadMachines();
+    }, [loadMachines]);
 
     const handleAddMachine = async (e) => {
         e.preventDefault();
@@ -29,7 +29,7 @@ const MachineManager = () => {
             setMessage('Machine added successfully!');
             setModelName('');
             setSerialNumber('');
-            loadMachines(); // Refresh the list
+            await loadMachines();
         } catch (error) {
             setMessage(error.response?.data || 'Failed to add machine.');
         }

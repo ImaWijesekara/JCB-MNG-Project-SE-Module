@@ -7,6 +7,7 @@ const navigationByRole = {
         { label: 'Overview', path: '/dashboard' },
         { label: 'Users', path: '/dashboard/users' },
         { label: 'Machines', path: '/dashboard/machines' },
+        { label: 'Maintenance', path: '/dashboard/maintenance' },
         { label: 'Bookings', path: '/dashboard/bookings' },
         { label: 'Feedback', path: '/dashboard/feedback' },
     ],

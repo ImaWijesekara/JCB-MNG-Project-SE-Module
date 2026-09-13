@@ -1,14 +1,22 @@
 package com.se.jcb_mng.controllers;
 
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.*;
-import com.se.jcb_mng.entities.MaintenanceLog;
-import com.se.jcb_mng.services.MaintenanceService;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.se.jcb_mng.entities.MaintenanceLog;
+import com.se.jcb_mng.services.MaintenanceService;
 
 @RestController
 @RequestMapping("/api/maintenance")
@@ -56,9 +64,15 @@ public class MaintenanceController {
 
     @PutMapping("/{id}/status")
     @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
-    public ResponseEntity<?> updateStatus(@PathVariable Long id, @RequestParam String status) {
+        public ResponseEntity<?> updateStatus(
+            @PathVariable Long id,
+            @RequestParam String status,
+            Authentication authentication) {
         try {
-            MaintenanceLog log = maintenanceService.updateTaskStatus(id, status);
+            boolean admin = authentication.getAuthorities().stream()
+                .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
+            MaintenanceLog log = maintenanceService.updateTaskStatus(
+                id, status, authentication.getName(), admin);
             return ResponseEntity.ok(toResponse(log));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(e.getMessage());

@@ -1,12 +1,20 @@
 package com.se.jcb_mng.controllers;
 
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
-import com.se.jcb_mng.entities.Machine;
-import com.se.jcb_mng.services.MachineService;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.se.jcb_mng.entities.Machine;
+import com.se.jcb_mng.services.MachineService;
 
 @RestController
 @RequestMapping("/api/machines")
@@ -38,7 +46,7 @@ public class MachineController {
     }
 
     @PutMapping("/{id}/status")
-    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> updateMachineStatus(@PathVariable Long id, @RequestParam String status) {
         try {
             Machine machine = machineService.updateStatus(id, status);
