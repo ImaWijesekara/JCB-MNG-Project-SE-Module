@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard';
 import DashboardSection from './pages/DashboardSection';
 import FeedbackManager from './pages/FeedbackManager';
 import UserManager from './pages/UserManager';
+import MachineManager from './pages/MachineManager';
 
 function App() {
 
@@ -37,6 +38,7 @@ function App() {
                     <Route path="payments" element={<ProtectedRoute allowedRoles={['FINANCE_OFFICER']}><DashboardSection section="payments" /></ProtectedRoute>} />
                     <Route path="invoices" element={<ProtectedRoute allowedRoles={['FINANCE_OFFICER']}><DashboardSection section="invoices" /></ProtectedRoute>} />
                     <Route path="reports" element={<ProtectedRoute allowedRoles={['FINANCE_OFFICER']}><DashboardSection section="reports" /></ProtectedRoute>} />
+                    <Route path="machines" element={<MachineManager />} />
                 </Route>
 
                 {/* Catch-all route to handle 404s */}
