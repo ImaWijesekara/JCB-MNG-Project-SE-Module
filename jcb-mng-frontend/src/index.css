@@ -1,0 +1,7 @@
+@import "tailwindcss";
+
+@theme {
+	--color-jcb-yellow: #fca311;
+	--color-jcb-dark: #111827;
+	--color-jcb-surface: #1f2937;
+}

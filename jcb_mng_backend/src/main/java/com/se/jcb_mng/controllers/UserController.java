@@ -6,11 +6,16 @@ import com.se.jcb_mng.util.JwtUtil;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.time.LocalDateTime;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/users")
@@ -51,8 +56,10 @@ public class UserController {
             // 2. Set the authentication in the security context
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
+            String role = authentication.getAuthorities().iterator().next().getAuthority();
+
             // 3. Generate the JWT
-            String jwt = jwtUtil.generateToken(loginRequest.getUsername());
+            String jwt = jwtUtil.generateToken(loginRequest.getUsername(), role);
 
             // 4. Return the token in a structured response
             return ResponseEntity.ok(new AuthResponse(jwt));
@@ -76,6 +83,21 @@ public class UserController {
         }
     }
 
+    @GetMapping("/all")
+    @PreAuthorize("@userService.isAdmin(authentication.name)")
+    public ResponseEntity<List<UserResponse>> getAllUsers() {
+        List<UserResponse> users = userService.getAllUsers().stream()
+                .map(user -> new UserResponse(
+                        user.getId(),
+                        user.getUsername(),
+                        user.getEmail(),
+                        user.getRole(),
+                        user.getCreatedAt()))
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(users);
+    }
+
     // DTOs for the request and response
     @Getter
     @Setter
@@ -93,5 +115,6 @@ public class UserController {
             this.token = token;
         }
     }
+    public record UserResponse(Long id, String username, String email, String role, LocalDateTime createdAt) {}
 
 }

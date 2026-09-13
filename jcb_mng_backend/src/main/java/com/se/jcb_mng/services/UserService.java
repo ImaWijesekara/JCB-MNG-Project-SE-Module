@@ -1,11 +1,13 @@
 package com.se.jcb_mng.services;
 
-import com.se.jcb_mng.entities.User;
-import com.se.jcb_mng.repositories.UserRepository;
-import org.springframework.stereotype.Service;
+import java.util.List;
+import java.util.Optional;
+
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import java.util.Optional;
+
+import com.se.jcb_mng.entities.User;
+import com.se.jcb_mng.repositories.UserRepository;
 
 @Service
 public class UserService {
@@ -29,16 +31,30 @@ public class UserService {
         // Encrypt the password before saving
         user.setPasswordHash(passwordEncoder.encode(user.getPasswordHash()));
 
-        // Ensure default role is assigned if none provided (e.g., CUSTOMER)
-        if (user.getRole() == null || user.getRole().isEmpty()) {
-            user.setRole("CUSTOMER");
+        String role = user.getRole();
+        if (role == null || role.isBlank()) {
+            role = "CUSTOMER";
         }
+        role = role.trim().toUpperCase();
+        if (role.startsWith("ROLE_")) {
+            role = role.substring("ROLE_".length());
+        }
+        user.setRole(role);
 
         return userRepository.save(user);
     }
 
     public Optional<User> findByUsername(String username) {
         return userRepository.findByUsername(username);
+    }
+
+    public boolean isAdmin(String username) {
+        return findByUsername(username)
+                .map(User::getRole)
+                .map(role -> role != null ? role.trim().toUpperCase() : "")
+                .map(role -> role.startsWith("ROLE_") ? role.substring("ROLE_".length()) : role)
+                .map("ADMIN"::equals)
+                .orElse(false);
     }
 
     public User updateProfile(Long userId, String fullName, String phoneNumber, String address) {
@@ -50,6 +66,11 @@ public class UserService {
         existingUser.setAddress(address);
 
         return userRepository.save(existingUser);
+    }
+
+    // Add this method inside UserService
+    public List<User> getAllUsers() {
+        return userRepository.findAll();
     }
 
 }
