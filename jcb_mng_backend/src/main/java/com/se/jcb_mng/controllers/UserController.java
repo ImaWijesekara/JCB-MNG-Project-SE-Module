@@ -1,21 +1,30 @@
 package com.se.jcb_mng.controllers;
 
-import com.se.jcb_mng.entities.User;
-import com.se.jcb_mng.services.UserService;
-import com.se.jcb_mng.util.JwtUtil;
-import lombok.Getter;
-import lombok.Setter;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-import java.time.LocalDateTime;
-import java.util.stream.Collectors;
+import com.se.jcb_mng.entities.User;
+import com.se.jcb_mng.services.UserService;
+import com.se.jcb_mng.util.JwtUtil;
+
+import lombok.Getter;
+import lombok.Setter;
 
 @RestController
 @RequestMapping("/api/users")

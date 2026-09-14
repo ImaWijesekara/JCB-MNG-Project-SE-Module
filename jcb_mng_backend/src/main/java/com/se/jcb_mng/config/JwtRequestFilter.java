@@ -1,7 +1,9 @@
 package com.se.jcb_mng.config;
 
 import java.io.IOException;
+import java.security.SignatureException;
 
+import io.jsonwebtoken.ExpiredJwtException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -41,7 +43,13 @@ public class JwtRequestFilter extends OncePerRequestFilter {
         // Check if the header contains a Bearer token
         if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
             jwt = authorizationHeader.substring(7);
-            username = jwtUtil.extractUsername(jwt);
+            try {
+                username = jwtUtil.extractUsername(jwt);
+            } catch (ExpiredJwtException e) {
+                logger.warn("Expired JWT token found in request.");
+            } catch (Exception e) {
+                logger.warn("Unable to parse JWT token.");
+            }
         }
 
         // Validate the token and authenticate the user if not already authenticated
