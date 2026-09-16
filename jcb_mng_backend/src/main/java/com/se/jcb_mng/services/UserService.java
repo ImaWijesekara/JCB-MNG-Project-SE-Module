@@ -20,6 +20,7 @@ public class UserService {
         this.passwordEncoder = passwordEncoder;
     }
 
+
     public User registerUser(User user) {
         if (userRepository.existsByUsername(user.getUsername())) {
             throw new IllegalArgumentException("Username is already taken");
@@ -57,6 +58,7 @@ public class UserService {
                 .orElse(false);
     }
 
+
     public User updateProfile(Long userId, String fullName, String phoneNumber, String address) {
         User existingUser = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
@@ -68,9 +70,63 @@ public class UserService {
         return userRepository.save(existingUser);
     }
 
-    // Add this method inside UserService
+
+    // CREATE
+    public User createUser(User user) {
+        // We can just reuse the robust registerUser logic for Admin creation
+        return registerUser(user);
+    }
+
+    // READ (All)
     public List<User> getAllUsers() {
         return userRepository.findAll();
     }
 
+    // READ (Single)
+    public User getUserById(Long id) {
+        return userRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+    }
+
+    // UPDATE (Admin updating someone else's role, email, etc.)
+    public User updateUser(Long id, User updatedData) {
+        User existingUser = userRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        // Make sure the admin isn't assigning an email that belongs to someone else
+        if (!existingUser.getEmail().equals(updatedData.getEmail()) && userRepository.existsByEmail(updatedData.getEmail())) {
+            throw new IllegalArgumentException("Email is already registered by another user.");
+        }
+
+        // Update fields
+        existingUser.setEmail(updatedData.getEmail());
+        existingUser.setFullName(updatedData.getFullName());
+        existingUser.setPhoneNumber(updatedData.getPhoneNumber());
+        existingUser.setAddress(updatedData.getAddress());
+
+        // Format and update Role
+        String role = updatedData.getRole();
+        if (role != null && !role.isBlank()) {
+            role = role.trim().toUpperCase();
+            if (role.startsWith("ROLE_")) {
+                role = role.substring("ROLE_".length());
+            }
+            existingUser.setRole(role);
+        }
+
+        // Only update password if the admin typed a new one
+        if (updatedData.getPasswordHash() != null && !updatedData.getPasswordHash().isEmpty()) {
+            existingUser.setPasswordHash(passwordEncoder.encode(updatedData.getPasswordHash()));
+        }
+
+        return userRepository.save(existingUser);
+    }
+
+    // DELETE
+    public void deleteUser(Long id) {
+        if (!userRepository.existsById(id)) {
+            throw new IllegalArgumentException("User not found");
+        }
+        userRepository.deleteById(id);
+    }
 }
