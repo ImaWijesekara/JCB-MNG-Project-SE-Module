@@ -1,4 +1,4 @@
-import React, { useContext } from 'react';
+import { useContext } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 
@@ -9,12 +9,14 @@ const navigationByRole = {
         { label: 'Machines', path: '/dashboard/machines' },
         { label: 'Maintenance', path: '/dashboard/maintenance' },
         { label: 'Bookings', path: '/dashboard/bookings' },
+        { label: 'Payments', path: '/dashboard/payments' },
         { label: 'Feedback', path: '/dashboard/feedback' },
     ],
     CUSTOMER: [
         { label: 'Overview', path: '/dashboard' },
         { label: 'Browse machines', path: '/dashboard/machines' },
         { label: 'My bookings', path: '/dashboard/bookings' },
+        { label: 'Payments', path: '/dashboard/payments' },
         { label: 'My feedback', path: '/dashboard/feedback' },
     ],
     OPERATOR: [

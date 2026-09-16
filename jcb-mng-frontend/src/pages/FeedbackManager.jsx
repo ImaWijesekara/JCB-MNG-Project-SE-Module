@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
-import { submitFeedback, getAllFeedback, getMyFeedback } from '../services/feedbackService';
+import { submitFeedback, updateFeedback, getAllFeedback, getMyFeedback, deleteFeedback } from '../services/feedbackService';
 
 const FeedbackManager = () => {
     const { user } = useContext(AuthContext);
@@ -8,21 +8,17 @@ const FeedbackManager = () => {
     const [message, setMessage] = useState('');
     const [rating, setRating] = useState(5);
     const [status, setStatus] = useState('');
-
-    useEffect(() => {
-        if (user?.role === 'ADMIN') {
-            loadAllFeedback();
-        } else if (user?.role === 'CUSTOMER') {
-            loadMyFeedback();
-        }
-    }, [user]);
+    const [loading, setLoading] = useState(true);
+    const [editingId, setEditingId] = useState(null);
 
     const loadAllFeedback = async () => {
         try {
             const data = await getAllFeedback();
             setFeedbacks(data);
-        } catch (error) {
-            console.error("Failed to load feedback");
+        } catch {
+            setStatus('Failed to load feedback.');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -30,16 +26,64 @@ const FeedbackManager = () => {
         try {
             const data = await getMyFeedback();
             setFeedbacks(data);
-        } catch (error) {
+        } catch {
             setStatus('Failed to load your feedback.');
+        } finally {
+            setLoading(false);
         }
+    };
+
+    useEffect(() => {
+        if (user?.role === 'ADMIN') {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            loadAllFeedback();
+        } else if (user?.role === 'CUSTOMER') {
+            loadMyFeedback();
+        }
+    }, [user]);
+
+    const handleDelete = async (id) => {
+        if (!window.confirm('Are you sure you want to delete this feedback?')) return;
+
+        try {
+            await deleteFeedback(id);
+            setFeedbacks((currentFeedbacks) => currentFeedbacks.filter((feedback) => feedback.id !== id));
+            setStatus('Feedback deleted successfully.');
+        } catch (error) {
+            setStatus(error.response?.data || 'Failed to delete feedback.');
+        }
+    };
+
+    const handleEdit = (feedback) => {
+        setEditingId(feedback.id);
+        setMessage(feedback.message);
+        setRating(feedback.rating);
+        setStatus('');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const handleCancelEdit = () => {
+        setEditingId(null);
+        setMessage('');
+        setRating(5);
+        setStatus('');
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            await submitFeedback(message, rating);
-            setStatus('Feedback submitted successfully!');
+            if (message.trim().length === 0) {
+                setStatus('Message is required.');
+                return;
+            }
+            if (editingId) {
+                await updateFeedback(editingId, message.trim(), rating);
+                setStatus('Feedback updated successfully!');
+            } else {
+                await submitFeedback(message.trim(), rating);
+                setStatus('Feedback submitted successfully!');
+            }
+            setEditingId(null);
             setMessage('');
             setRating(5);
             await loadMyFeedback();
@@ -52,9 +96,11 @@ const FeedbackManager = () => {
         <div className="max-w-4xl">
             <h2 className="mb-6 text-3xl font-bold tracking-tight">{user?.role === 'ADMIN' ? 'Feedback Management' : 'My feedback'}</h2>
 
+            {loading && <p className="text-sm text-gray-400">Loading feedback...</p>}
+
             {user?.role === 'CUSTOMER' && (
                 <div className="bg-jcb-surface p-6 rounded-lg border border-gray-800">
-                    <h3 className="text-xl font-bold text-jcb-yellow mb-4">Submit New Feedback</h3>
+                    <h3 className="text-xl font-bold text-jcb-yellow mb-4">{editingId ? 'Edit Feedback' : 'Submit New Feedback'}</h3>
                     {status && <p className="mb-4 text-sm text-jcb-yellow">{status}</p>}
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div>
@@ -74,9 +120,16 @@ const FeedbackManager = () => {
                                 className="w-full rounded border border-gray-700 bg-jcb-dark px-3 py-2 text-gray-100 outline-none focus:border-jcb-yellow"></textarea>
                             <p className="mt-1 text-right text-xs text-gray-500">{message.length}/1000</p>
                         </div>
-                        <button type="submit" className="bg-jcb-yellow text-gray-900 font-bold py-2 px-6 rounded hover:bg-yellow-500 transition">
-                            Submit
-                        </button>
+                        <div className="flex gap-3">
+                            <button type="submit" className="bg-jcb-yellow text-gray-900 font-bold py-2 px-6 rounded hover:bg-yellow-500 transition">
+                                {editingId ? 'Update' : 'Submit'}
+                            </button>
+                            {editingId && (
+                                <button type="button" onClick={handleCancelEdit} className="bg-gray-700 text-white font-bold py-2 px-6 rounded hover:bg-gray-600 transition">
+                                    Cancel
+                                </button>
+                            )}
+                        </div>
                     </form>
                 </div>
             )}
@@ -97,6 +150,9 @@ const FeedbackManager = () => {
                                         <span className="text-xs text-gray-500">{feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateString() : ''}</span>
                                     </div>
                                     <p className="mt-2 text-sm text-gray-300">{feedback.message}</p>
+                                    <button type="button" onClick={() => handleEdit(feedback)} className="mt-3 text-sm font-medium text-blue-400 hover:text-blue-300">
+                                        Edit
+                                    </button>
                                 </div>
                             ))}
                         </div>
@@ -110,19 +166,27 @@ const FeedbackManager = () => {
                         <thead className="bg-gray-800 text-gray-100 uppercase text-xs">
                             <tr>
                                 <th className="px-6 py-4">ID</th>
+                                <th className="px-6 py-4">Customer</th>
                                 <th className="px-6 py-4">Message</th>
                                 <th className="px-6 py-4">Rating</th>
+                                <th className="px-6 py-4 text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {feedbacks.length === 0 ? (
-                                <tr><td colSpan="3" className="px-6 py-4 text-center">No feedback found.</td></tr>
+                                <tr><td colSpan="5" className="px-6 py-4 text-center">No feedback found.</td></tr>
                             ) : (
                                 feedbacks.map((fb) => (
                                     <tr key={fb.id} className="border-b border-gray-800">
                                         <td className="px-6 py-4">#{fb.id}</td>
+                                        <td className="px-6 py-4">{fb.username || 'Unknown'}</td>
                                         <td className="px-6 py-4 text-gray-100">{fb.message}</td>
                                         <td className="px-6 py-4 font-bold text-jcb-yellow">{fb.rating} / 5</td>
+                                        <td className="px-6 py-4 text-right">
+                                            <button type="button" onClick={() => handleDelete(fb.id)} className="font-medium text-red-400 hover:text-red-300">
+                                                Delete
+                                            </button>
+                                        </td>
                                     </tr>
                                 ))
                             )}

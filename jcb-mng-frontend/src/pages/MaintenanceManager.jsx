@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useContext, useCallback } from 'react';
+import { useState, useEffect, useContext, useCallback } from 'react';
 import { AuthContext } from '../context/AuthContext';
-import { getAllMaintenance, getMyTasks, scheduleMaintenance, updateTaskStatus } from '../services/maintenanceService';
+import { getAllMaintenance, getMyTasks, scheduleMaintenance, updateMaintenance, deleteMaintenance, updateTaskStatus } from '../services/maintenanceService';
 import { getAllMachines } from '../services/machineService';
 import { getAllUsers } from '../services/userService';
 
@@ -16,6 +16,9 @@ const MaintenanceManager = () => {
     const [description, setDescription] = useState('');
     const [serviceDate, setServiceDate] = useState('');
     const [statusMessage, setStatusMessage] = useState('');
+    const [loading, setLoading] = useState(true);
+    const [editingTaskId, setEditingTaskId] = useState(null);
+    const [taskStatus, setTaskStatus] = useState('SCHEDULED');
 
     const loadData = useCallback(async () => {
         try {
@@ -35,18 +38,34 @@ const MaintenanceManager = () => {
             }
         } catch (error) {
             console.error("Failed to load maintenance data", error);
+            setStatusMessage(error.response?.data || 'Failed to load maintenance data.');
+        } finally {
+            setLoading(false);
         }
     }, [user]);
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         loadData();
     }, [loadData]);
 
     const handleSchedule = async (e) => {
         e.preventDefault();
+        if (!machineId || !operatorUsername || !description.trim() || !serviceDate) {
+            setStatusMessage('Complete all maintenance fields.');
+            return;
+        }
         try {
-            await scheduleMaintenance(machineId, operatorUsername, description, serviceDate);
-            setStatusMessage('Maintenance scheduled successfully!');
+            const task = { machineId: Number(machineId), operatorUsername, description: description.trim(), serviceDate, status: taskStatus };
+            if (editingTaskId) {
+                await updateMaintenance(editingTaskId, task);
+                setStatusMessage('Maintenance task updated successfully!');
+            } else {
+                await scheduleMaintenance(machineId, operatorUsername, description, serviceDate);
+                setStatusMessage('Maintenance scheduled successfully!');
+            }
+            setEditingTaskId(null);
+            setTaskStatus('SCHEDULED');
             setDescription('');
             setServiceDate('');
             setMachineId('');
@@ -57,12 +76,44 @@ const MaintenanceManager = () => {
         }
     };
 
+    const handleEdit = (task) => {
+        setEditingTaskId(task.id);
+        setMachineId(String(task.machineId));
+        setOperatorUsername(task.operatorUsername || task.operatorName);
+        setDescription(task.description);
+        setServiceDate(task.serviceDate);
+        setTaskStatus(task.status);
+        setStatusMessage('');
+    };
+
+    const handleCancelEdit = () => {
+        setEditingTaskId(null);
+        setTaskStatus('SCHEDULED');
+        setMachineId('');
+        setOperatorUsername('');
+        setDescription('');
+        setServiceDate('');
+        setStatusMessage('');
+    };
+
+    const handleDelete = async (taskId) => {
+        if (!window.confirm('Are you sure you want to delete this maintenance task?')) return;
+        try {
+            await deleteMaintenance(taskId);
+            setTasks((currentTasks) => currentTasks.filter((task) => task.id !== taskId));
+            if (editingTaskId === taskId) handleCancelEdit();
+            setStatusMessage('Maintenance task deleted successfully.');
+        } catch (error) {
+            setStatusMessage(error.response?.data || 'Failed to delete maintenance task.');
+        }
+    };
+
     const handleStatusChange = async (taskId, newStatus) => {
         try {
             await updateTaskStatus(taskId, newStatus);
             await loadData();
         } catch (error) {
-            alert('Failed to update status.');
+            setStatusMessage(error.response?.data || 'Failed to update status.');
         }
     };
 
@@ -72,10 +123,12 @@ const MaintenanceManager = () => {
                 {user?.role === 'ADMIN' ? 'Maintenance Operations' : 'Assigned Job Queue'}
             </h2>
 
+            {loading && <p className="mb-4 text-sm text-gray-400">Loading maintenance tasks...</p>}
+
             {/* Admin Schedule Form */}
             {user?.role === 'ADMIN' && (
                 <div className="mb-8 bg-jcb-surface p-6 rounded-lg border border-gray-800">
-                    <h3 className="text-xl font-bold text-jcb-yellow mb-4">Schedule Repair Task</h3>
+                    <h3 className="text-xl font-bold text-jcb-yellow mb-4">{editingTaskId ? 'Edit Repair Task' : 'Schedule Repair Task'}</h3>
                     {statusMessage && <p className="mb-4 text-sm text-jcb-yellow">{statusMessage}</p>}
                     
                     <form onSubmit={handleSchedule} className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -85,7 +138,7 @@ const MaintenanceManager = () => {
                                 className="w-full px-3 py-2 bg-jcb-dark border border-gray-700 rounded text-gray-100 focus:border-jcb-yellow outline-none">
                                 <option value="">-- Choose Machine --</option>
                                 {machines.map(m => (
-                                    <option key={m.id} value={m.id}>{m.modelName} ({m.serialNumber}) - {m.status}</option>
+                                    <option key={m.id} value={m.id}>{m.name} ({m.modelYear}) - {m.status}</option>
                                 ))}
                             </select>
                         </div>
@@ -103,20 +156,30 @@ const MaintenanceManager = () => {
 
                         <div>
                             <label className="block text-sm text-gray-400 mb-1">Service Date</label>
-                            <input type="date" value={serviceDate} onChange={(e) => setServiceDate(e.target.value)} required
+                            <input type="date" value={serviceDate} min={new Date().toISOString().split('T')[0]} onChange={(e) => setServiceDate(e.target.value)} required
                                 className="w-full px-3 py-2 bg-jcb-dark border border-gray-700 rounded text-gray-100 focus:border-jcb-yellow outline-none" />
                         </div>
 
                         <div className="md:col-span-2">
                             <label className="block text-sm text-gray-400 mb-1">Repair Description</label>
-                            <textarea value={description} onChange={(e) => setDescription(e.target.value)} required rows="2"
+                            <textarea value={description} onChange={(e) => setDescription(e.target.value)} required maxLength="1000" rows="2"
                                 className="w-full px-3 py-2 bg-jcb-dark border border-gray-700 rounded text-gray-100 focus:border-jcb-yellow outline-none" placeholder="Describe the issue or service requirements..." />
                         </div>
 
                         <div>
+                            <label className="block text-sm text-gray-400 mb-1">Task Status</label>
+                            <select value={taskStatus} onChange={(e) => setTaskStatus(e.target.value)} required
+                                className="w-full px-3 py-2 bg-jcb-dark border border-gray-700 rounded text-gray-100 focus:border-jcb-yellow outline-none">
+                                <option value="SCHEDULED">SCHEDULED</option>
+                                <option value="COMPLETED">COMPLETED</option>
+                            </select>
+                        </div>
+
+                        <div>
                             <button type="submit" className="bg-jcb-yellow text-gray-900 font-bold py-2 px-6 rounded hover:bg-yellow-500 transition">
-                                Schedule Task
+                                {editingTaskId ? 'Update Task' : 'Schedule Task'}
                             </button>
+                            {editingTaskId && <button type="button" onClick={handleCancelEdit} className="ml-3 bg-gray-700 text-white font-bold py-2 px-4 rounded hover:bg-gray-600 transition">Cancel</button>}
                         </div>
                     </form>
                 </div>
@@ -133,7 +196,7 @@ const MaintenanceManager = () => {
                             <th className="px-6 py-4">Description</th>
                             <th className="px-6 py-4">Date</th>
                             <th className="px-6 py-4">Status</th>
-                            {user?.role === 'OPERATOR' && <th className="px-6 py-4">Actions</th>}
+                            <th className="px-6 py-4">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-800">
@@ -154,7 +217,7 @@ const MaintenanceManager = () => {
                                             {task.status}
                                         </span>
                                     </td>
-                                    {user?.role === 'OPERATOR' && (
+                                    {user?.role === 'OPERATOR' ? (
                                         <td className="px-6 py-4">
                                             {task.status !== 'COMPLETED' && (
                                                 <button onClick={() => handleStatusChange(task.id, 'COMPLETED')}
@@ -162,6 +225,11 @@ const MaintenanceManager = () => {
                                                     Mark Completed
                                                 </button>
                                             )}
+                                        </td>
+                                    ) : (
+                                        <td className="px-6 py-4">
+                                            <button type="button" onClick={() => handleEdit(task)} className="mr-4 font-medium text-blue-400 hover:text-blue-300">Edit</button>
+                                            <button type="button" onClick={() => handleDelete(task.id)} className="font-medium text-red-400 hover:text-red-300">Delete</button>
                                         </td>
                                     )}
                                 </tr>

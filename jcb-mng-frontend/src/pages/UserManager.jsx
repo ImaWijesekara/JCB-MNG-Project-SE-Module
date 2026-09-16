@@ -1,43 +1,90 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { getAllUsers, createUser, updateUser, deleteUser } from '../services/userService';
 
 const UserManager = () => {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [formErrors, setFormErrors] = useState({});
 
     // CRUD Form State
     const [formData, setFormData] = useState({ id: null, username: '', email: '', password: '', role: 'CUSTOMER' });
     const [isEditing, setIsEditing] = useState(false);
-
-    useEffect(() => {
-        loadUsers();
-    }, []);
 
     const loadUsers = async () => {
         try {
             const data = await getAllUsers();
             setUsers(data);
             setLoading(false);
-        } catch (err) {
+        } catch {
             setError('Failed to load users');
             setLoading(false);
         }
     };
 
+    useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        loadUsers();
+    }, []);
+
     // --- Form Handlers ---
     const handleInputChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
+        const { name, value } = e.target;
+        setFormData({ ...formData, [name]: value });
+        setFormErrors({ ...formErrors, [name]: '' });
+    };
+
+    const validateForm = () => {
+        const errors = {};
+        const username = formData.username.trim();
+        const email = formData.email.trim();
+        const password = formData.password;
+        const validRoles = ['CUSTOMER', 'ADMIN', 'OPERATOR', 'FINANCE_OFFICER', 'MAINTENANCE_TECHNICIAN', 'OPERATION_MANAGER'];
+
+        if (!username) {
+            errors.username = 'Username is required.';
+        } else if (username.length < 3 || username.length > 50) {
+            errors.username = 'Username must be between 3 and 50 characters.';
+        } else if (!/^[a-zA-Z0-9._-]+$/.test(username)) {
+            errors.username = 'Username may contain only letters, numbers, dots, underscores, and hyphens.';
+        }
+
+        if (!email) {
+            errors.email = 'Email is required.';
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            errors.email = 'Enter a valid email address.';
+        }
+
+        if (!isEditing && !password) {
+            errors.password = 'Password is required.';
+        } else if (password && (password.length < 8 || !/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password))) {
+            errors.password = 'Password must be at least 8 characters and include uppercase, lowercase, and a number.';
+        }
+
+        if (!validRoles.includes(formData.role)) {
+            errors.role = 'Select a valid role.';
+        }
+
+        setFormErrors(errors);
+        return Object.keys(errors).length === 0;
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (!validateForm()) return;
+
+        const submittedData = {
+            ...formData,
+            username: formData.username.trim(),
+            email: formData.email.trim(),
+        };
+
         try {
             if (isEditing) {
-                await updateUser(formData.id, formData);
+                await updateUser(submittedData.id, submittedData);
                 alert("User updated successfully");
             } else {
-                await createUser(formData);
+                await createUser(submittedData);
                 alert("User created successfully");
             }
             resetForm();
@@ -59,7 +106,7 @@ const UserManager = () => {
             try {
                 await deleteUser(id);
                 loadUsers(); // Refresh table
-            } catch (err) {
+            } catch {
                 alert("Failed to delete user");
             }
         }
@@ -68,6 +115,7 @@ const UserManager = () => {
     const resetForm = () => {
         setFormData({ id: null, username: '', email: '', password: '', role: 'CUSTOMER' });
         setIsEditing(false);
+        setFormErrors({});
     };
 
     if (loading) return <div className="text-jcb-yellow">Loading users...</div>;
@@ -107,25 +155,32 @@ const UserManager = () => {
                 <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                     <div>
                         <label className="block text-sm text-gray-400 mb-1">Username</label>
-                        <input type="text" name="username" value={formData.username} onChange={handleInputChange} disabled={isEditing} required
-                            className="w-full px-3 py-2 bg-jcb-dark border border-gray-700 rounded text-gray-100 disabled:opacity-50" />
+                        <input type="text" name="username" value={formData.username} onChange={handleInputChange} disabled={isEditing} required maxLength="50" autoComplete="username"
+                            aria-invalid={Boolean(formErrors.username)} aria-describedby={formErrors.username ? 'username-error' : undefined}
+                            className={`w-full px-3 py-2 bg-jcb-dark border rounded text-gray-100 disabled:opacity-50 ${formErrors.username ? 'border-red-500' : 'border-gray-700'}`} />
+                        {formErrors.username && <p id="username-error" className="mt-1 text-xs text-red-400">{formErrors.username}</p>}
                     </div>
                     <div>
                         <label className="block text-sm text-gray-400 mb-1">Email</label>
-                        <input type="email" name="email" value={formData.email} onChange={handleInputChange} required
-                            className="w-full px-3 py-2 bg-jcb-dark border border-gray-700 rounded text-gray-100" />
+                        <input type="email" name="email" value={formData.email} onChange={handleInputChange} required maxLength="254" autoComplete="email"
+                            aria-invalid={Boolean(formErrors.email)} aria-describedby={formErrors.email ? 'email-error' : undefined}
+                            className={`w-full px-3 py-2 bg-jcb-dark border rounded text-gray-100 ${formErrors.email ? 'border-red-500' : 'border-gray-700'}`} />
+                        {formErrors.email && <p id="email-error" className="mt-1 text-xs text-red-400">{formErrors.email}</p>}
                     </div>
                     <div>
                         <label className="block text-sm text-gray-400 mb-1">
                             {isEditing ? 'New Password (Optional)' : 'Password'}
                         </label>
-                        <input type="password" name="password" value={formData.password} onChange={handleInputChange} required={!isEditing}
-                            className="w-full px-3 py-2 bg-jcb-dark border border-gray-700 rounded text-gray-100" />
+                        <input type="password" name="password" value={formData.password} onChange={handleInputChange} required={!isEditing} minLength="8" autoComplete={isEditing ? 'new-password' : 'new-password'}
+                            aria-invalid={Boolean(formErrors.password)} aria-describedby={formErrors.password ? 'password-error' : undefined}
+                            className={`w-full px-3 py-2 bg-jcb-dark border rounded text-gray-100 ${formErrors.password ? 'border-red-500' : 'border-gray-700'}`} />
+                        {formErrors.password && <p id="password-error" className="mt-1 text-xs text-red-400">{formErrors.password}</p>}
                     </div>
                     <div>
                         <label className="block text-sm text-gray-400 mb-1">Role</label>
                         <select name="role" value={formData.role} onChange={handleInputChange} required
-                            className="w-full px-3 py-2 bg-jcb-dark border border-gray-700 rounded text-gray-100">
+                            aria-invalid={Boolean(formErrors.role)} aria-describedby={formErrors.role ? 'role-error' : undefined}
+                            className={`w-full px-3 py-2 bg-jcb-dark border rounded text-gray-100 ${formErrors.role ? 'border-red-500' : 'border-gray-700'}`}>
                             <option value="CUSTOMER">CUSTOMER</option>
                             <option value="ADMIN">ADMIN</option>
                             <option value="OPERATOR">OPERATOR</option>
@@ -133,6 +188,7 @@ const UserManager = () => {
                             <option value="MAINTENANCE_TECHNICIAN">MAINTENANCE_TECHNICIAN</option>
                             <option value="OPERATION_MANAGER">OPERATION_MANAGER</option>
                         </select>
+                        {formErrors.role && <p id="role-error" className="mt-1 text-xs text-red-400">{formErrors.role}</p>}
                     </div>
                     <div className="md:col-span-4 flex gap-4 mt-2">
                         <button type="submit" className="bg-jcb-yellow text-gray-900 font-bold py-2 px-6 rounded hover:bg-yellow-500 transition">
