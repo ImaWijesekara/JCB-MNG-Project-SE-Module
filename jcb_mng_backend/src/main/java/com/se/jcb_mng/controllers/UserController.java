@@ -10,6 +10,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -40,6 +41,7 @@ public class UserController {
         this.authenticationManager = authenticationManager;
         this.jwtUtil = jwtUtil;
     }
+
 
     @PostMapping("/register")
     public ResponseEntity<?> registerUser(@RequestBody User user) {
@@ -78,6 +80,7 @@ public class UserController {
         }
     }
 
+
     @PutMapping("/{id}/profile")
     public ResponseEntity<?> updateProfile(
             @PathVariable Long id,
@@ -91,6 +94,7 @@ public class UserController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
+
 
     @GetMapping("/all")
     @PreAuthorize("@userService.isAdmin(authentication.name)")
@@ -107,7 +111,40 @@ public class UserController {
         return ResponseEntity.ok(users);
     }
 
-    // DTOs for the request and response
+    @PostMapping("/create")
+    @PreAuthorize("@userService.isAdmin(authentication.name)")
+    public ResponseEntity<?> createUser(@RequestBody User user) {
+        try {
+            User createdUser = userService.createUser(user);
+            return ResponseEntity.ok(createdUser);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PutMapping("/update/{id}")
+    @PreAuthorize("@userService.isAdmin(authentication.name)")
+    public ResponseEntity<?> updateUser(@PathVariable Long id, @RequestBody User user) {
+        try {
+            User updatedUser = userService.updateUser(id, user);
+            return ResponseEntity.ok(updatedUser);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @DeleteMapping("/delete/{id}")
+    @PreAuthorize("@userService.isAdmin(authentication.name)")
+    public ResponseEntity<?> deleteUser(@PathVariable Long id) {
+        try {
+            userService.deleteUser(id);
+            return ResponseEntity.ok().body("User deleted successfully.");
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+
     @Getter
     @Setter
     public static class LoginRequest {
@@ -124,6 +161,7 @@ public class UserController {
             this.token = token;
         }
     }
+
     public record UserResponse(Long id, String username, String email, String role, LocalDateTime createdAt) {}
 
 }
