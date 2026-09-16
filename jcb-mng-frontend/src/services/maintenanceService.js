@@ -1,13 +1,12 @@
 import api from './api';
 
 export const scheduleMaintenance = async (machineId, operatorUsername, description, serviceDate) => {
-    const params = new URLSearchParams();
-    params.append('machineId', machineId);
-    params.append('operatorUsername', operatorUsername);
-    params.append('description', description);
-    params.append('serviceDate', serviceDate);
-
-    const response = await api.post('/maintenance/schedule', params);
+    const response = await api.post('/maintenance/schedule', {
+        machineId: Number(machineId),
+        operatorUsername,
+        description,
+        serviceDate,
+    });
     return response.data;
 };
 
@@ -22,8 +21,18 @@ export const getMyTasks = async () => {
 };
 
 export const updateTaskStatus = async (taskId, status) => {
-    const params = new URLSearchParams();
-    params.append('status', status);
-    const response = await api.put(`/maintenance/${taskId}/status`, params);
+    const response = await api.put(`/maintenance/${taskId}/status`, null, {
+        params: { status },
+    });
+    return response.data;
+};
+
+export const updateMaintenance = async (taskId, task) => {
+    const response = await api.put(`/maintenance/${taskId}`, task);
+    return response.data;
+};
+
+export const deleteMaintenance = async (taskId) => {
+    const response = await api.delete(`/maintenance/${taskId}`);
     return response.data;
 };
