@@ -97,7 +97,7 @@ public class UserController {
 
 
     @GetMapping("/all")
-    @PreAuthorize("@userService.isAdmin(authentication.name)")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<UserResponse>> getAllUsers() {
         List<UserResponse> users = userService.getAllUsers().stream()
                 .map(user -> new UserResponse(
@@ -112,7 +112,7 @@ public class UserController {
     }
 
     @PostMapping("/create")
-    @PreAuthorize("@userService.isAdmin(authentication.name)")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> createUser(@RequestBody User user) {
         try {
             User createdUser = userService.createUser(user);
@@ -123,7 +123,7 @@ public class UserController {
     }
 
     @PutMapping("/update/{id}")
-    @PreAuthorize("@userService.isAdmin(authentication.name)")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> updateUser(@PathVariable Long id, @RequestBody User user) {
         try {
             User updatedUser = userService.updateUser(id, user);
@@ -134,7 +134,7 @@ public class UserController {
     }
 
     @DeleteMapping("/delete/{id}")
-    @PreAuthorize("@userService.isAdmin(authentication.name)")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> deleteUser(@PathVariable Long id) {
         try {
             userService.deleteUser(id);
