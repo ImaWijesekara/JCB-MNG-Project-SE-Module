@@ -1,4 +1,4 @@
 package com.se.jcb_mng.services;
 
-public class FeedbackService {
+public class MachineService {
 }
