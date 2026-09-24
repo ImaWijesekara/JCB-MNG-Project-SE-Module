@@ -8,7 +8,9 @@ const api = axios.create({
 api.interceptors.request.use(
     (config) => {
         const token = localStorage.getItem('jwt_token');
-        if (token) {
+        const isPublicAuthRequest = config.url?.includes('/users/login')
+            || config.url?.includes('/users/register');
+        if (token && !isPublicAuthRequest) {
             config.headers.Authorization = `Bearer ${token}`;
         }
         return config;

@@ -122,6 +122,22 @@ public class UserService {
         return userRepository.save(existingUser);
     }
 
+    // UPDATE ROLE ONLY (Quick action for Admin dashboard)
+    public User updateUserRole(Long id, String newRole) {
+        User existingUser = userRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        if (newRole != null && !newRole.isBlank()) {
+            String role = newRole.trim().toUpperCase();
+            if (role.startsWith("ROLE_")) {
+                role = role.substring("ROLE_".length());
+            }
+            existingUser.setRole(role);
+        }
+
+        return userRepository.save(existingUser);
+    }
+
     // DELETE
     public void deleteUser(Long id) {
         if (!userRepository.existsById(id)) {

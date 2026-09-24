@@ -80,6 +80,18 @@ public class UserController {
         }
     }
 
+    // UPDATE USER ROLE (Triggered by the React dropdown)
+    @PutMapping("/{id}/role")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> updateUserRole(@PathVariable Long id, @RequestParam String role) {
+        try {
+            User updatedUser = userService.updateUserRole(id, role);
+            return ResponseEntity.ok(updatedUser); // Return the updated user to React
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
 
     @PutMapping("/{id}/profile")
     public ResponseEntity<?> updateProfile(
