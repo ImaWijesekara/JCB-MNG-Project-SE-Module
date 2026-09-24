@@ -6,7 +6,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     const { user, loading } = useContext(AuthContext);
 
     if (loading) {
-        return <div className="min-h-screen bg-jcb-dark flex items-center justify-center text-jcb-yellow">Loading...</div>;
+        return <div className="min-h-screen bg-jcb-background flex items-center justify-center text-jcb-yellow">Loading...</div>;
     }
 
     if (!user) {
