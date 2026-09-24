@@ -70,22 +70,22 @@ const BookingManager = () => {
                 {user?.role === 'ADMIN' ? 'Manage Bookings' : 'My Rentals'}
             </h2>
 
-            {loading && <p className="mb-4 text-sm text-gray-400">Loading bookings...</p>}
+            {loading && <p className="mb-4 text-sm text-jcb-textMuted">Loading bookings...</p>}
 
             {/* CUSTOMER BOOKING FORM */}
             {user?.role === 'CUSTOMER' && (
-                <div className="mb-8 bg-jcb-surface p-6 rounded-lg border border-gray-800 shadow-md">
-                    <h3 className="text-xl font-bold text-gray-100 mb-4">Request a JCB Rental</h3>
-                    {error && <p className="text-red-400 mb-4">{error}</p>}
+                <div className="mb-8 bg-jcb-surface p-6 rounded-lg border border-jcb-border shadow-md">
+                    <h3 className="text-xl font-bold text-jcb-textMain mb-4">Request a JCB Rental</h3>
+                    {error && <p className="text-red-600 mb-4">{error}</p>}
                     
                     <form onSubmit={handleCreateBooking} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                         <div className="md:col-span-2">
-                            <label className="block text-sm text-gray-400 mb-1">Select Equipment</label>
+                            <label className="block text-sm text-jcb-textMuted mb-1">Select Equipment</label>
                             <select 
                                 value={formData.machineId} 
                                 onChange={(e) => setFormData({...formData, machineId: e.target.value})} 
                                 required
-                                className="w-full px-3 py-2 bg-jcb-dark border border-gray-700 rounded text-gray-100 focus:border-jcb-yellow outline-none"
+                                className="w-full px-3 py-2 bg-jcb-background border border-jcb-border rounded text-jcb-textMain focus:border-jcb-yellow outline-none"
                             >
                                 <option value="">-- Choose a Machine --</option>
                                 {machines.map((machine) => (
@@ -94,20 +94,20 @@ const BookingManager = () => {
                                     </option>
                                 ))}
                             </select>
-                            {machines.length === 0 && <p className="mt-2 text-sm text-gray-400">No JCBs are currently available for booking.</p>}
+                            {machines.length === 0 && <p className="mt-2 text-sm text-jcb-textMuted">No JCBs are currently available for booking.</p>}
                         </div>
                         <div>
-                            <label className="block text-sm text-gray-400 mb-1">Start Date</label>
+                            <label className="block text-sm text-jcb-textMuted mb-1">Start Date</label>
                             <input type="date" min={new Date().toISOString().split('T')[0]} value={formData.startDate} onChange={(e) => setFormData({...formData, startDate: e.target.value})} required
-                                className="w-full px-3 py-2 bg-jcb-dark border border-gray-700 rounded text-gray-100 focus:border-jcb-yellow outline-none" />
+                                className="w-full px-3 py-2 bg-jcb-background border border-jcb-border rounded text-jcb-textMain focus:border-jcb-yellow outline-none" />
                         </div>
                         <div>
-                            <label className="block text-sm text-gray-400 mb-1">End Date</label>
+                            <label className="block text-sm text-jcb-textMuted mb-1">End Date</label>
                             <input type="date" min={formData.startDate || new Date().toISOString().split('T')[0]} value={formData.endDate} onChange={(e) => setFormData({...formData, endDate: e.target.value})} required
-                                className="w-full px-3 py-2 bg-jcb-dark border border-gray-700 rounded text-gray-100 focus:border-jcb-yellow outline-none" />
+                                className="w-full px-3 py-2 bg-jcb-background border border-jcb-border rounded text-jcb-textMain focus:border-jcb-yellow outline-none" />
                         </div>
                         <div className="md:col-span-4 mt-2">
-                            <button type="submit" className="bg-jcb-yellow text-gray-900 font-bold py-2 px-6 rounded hover:bg-yellow-500 transition">
+                            <button type="submit" className="bg-jcb-yellow text-jcb-textMain font-bold py-2 px-6 rounded hover:bg-yellow-500 transition">
                                 Submit Request
                             </button>
                         </div>
@@ -116,9 +116,9 @@ const BookingManager = () => {
             )}
 
             {/* BOOKINGS DATA TABLE */}
-            <div className="bg-jcb-surface rounded-lg border border-gray-800 overflow-hidden shadow-md">
-                <table className="w-full text-left text-sm text-gray-400">
-                    <thead className="bg-gray-800 text-gray-100 uppercase text-xs">
+            <div className="bg-jcb-surface rounded-lg border border-jcb-border overflow-hidden shadow-md">
+                <table className="w-full text-left text-sm text-jcb-textMuted">
+                    <thead className="bg-jcb-background text-jcb-textMain uppercase text-xs">
                         <tr>
                             <th className="px-6 py-4">ID</th>
                             {user?.role === 'ADMIN' && <th className="px-6 py-4">Customer</th>}
@@ -129,13 +129,13 @@ const BookingManager = () => {
                             <th className="px-6 py-4">Actions</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-800">
+                    <tbody className="divide-y divide-jcb-border">
                         {bookings.length === 0 ? (
-                            <tr><td colSpan="7" className="px-6 py-8 text-center text-gray-500">No bookings found.</td></tr>
+                            <tr><td colSpan="7" className="px-6 py-8 text-center text-jcb-textMuted">No bookings found.</td></tr>
                         ) : bookings.map((b) => (
-                            <tr key={b.id} className="hover:bg-gray-800/50 transition">
+                            <tr key={b.id} className="hover:bg-jcb-background transition">
                                 <td className="px-6 py-4">#{b.id}</td>
-                                {user?.role === 'ADMIN' && <td className="px-6 py-4 text-gray-100 font-medium">{b.customerName}</td>}
+                                {user?.role === 'ADMIN' && <td className="px-6 py-4 text-jcb-textMain font-medium">{b.customerName}</td>}
                                 <td className="px-6 py-4">{b.machineDetails}</td>
                                 <td className="px-6 py-4">{b.startDate} to {b.endDate}</td>
                                 <td className="px-6 py-4 text-jcb-yellow font-bold">Rs. {b.totalCost}</td>
@@ -143,8 +143,8 @@ const BookingManager = () => {
                                     <span className={`rounded px-2 py-1 text-xs font-bold ${
                                         b.status === 'APPROVED' ? 'bg-green-900/50 text-green-400' :
                                         b.status === 'PENDING' ? 'bg-jcb-yellow/20 text-jcb-yellow' :
-                                        b.status === 'REJECTED' || b.status === 'CANCELED' ? 'bg-red-900/50 text-red-400' :
-                                        'bg-blue-900/50 text-blue-400'
+                                        b.status === 'REJECTED' || b.status === 'CANCELED' ? 'bg-red-50 text-red-600' :
+                                        'bg-blue-900/50 text-blue-600'
                                     }`}>
                                         {b.status}
                                     </span>
@@ -154,16 +154,16 @@ const BookingManager = () => {
                                     {user?.role === 'ADMIN' && b.status === 'PENDING' && (
                                         <div className="flex gap-3">
                                             <button onClick={() => handleStatusChange(b.id, 'APPROVED')} className="text-green-400 hover:text-green-300 font-medium">Approve</button>
-                                            <button onClick={() => handleStatusChange(b.id, 'REJECTED')} className="text-red-400 hover:text-red-300 font-medium">Reject</button>
+                                            <button onClick={() => handleStatusChange(b.id, 'REJECTED')} className="text-red-600 hover:text-red-700 font-medium">Reject</button>
                                         </div>
                                     )}
                                     {user?.role === 'ADMIN' && b.status === 'APPROVED' && (
-                                        <button onClick={() => handleStatusChange(b.id, 'COMPLETED')} className="text-blue-400 hover:text-blue-300 font-medium">Mark Complete</button>
+                                        <button onClick={() => handleStatusChange(b.id, 'COMPLETED')} className="text-blue-600 hover:text-blue-700 font-medium">Mark Complete</button>
                                     )}
                                     
                                     {/* CUSTOMER ACTIONS */}
                                     {user?.role === 'CUSTOMER' && b.status === 'PENDING' && (
-                                        <button onClick={() => handleStatusChange(b.id, 'CANCELED')} className="text-red-400 hover:text-red-300 font-medium">Cancel Request</button>
+                                        <button onClick={() => handleStatusChange(b.id, 'CANCELED')} className="text-red-600 hover:text-red-700 font-medium">Cancel Request</button>
                                     )}
                                 </td>
                             </tr>
