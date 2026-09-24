@@ -2,6 +2,18 @@
 
 @theme {
 	--color-jcb-yellow: #fca311;
-	--color-jcb-dark: #111827;
-	--color-jcb-surface: #1f2937;
+	--color-jcb-brand: #ffc222;
+	--color-jcb-background: #f8fafc;
+	--color-jcb-surface: #ffffff;
+	--color-jcb-border: #e2e8f0;
+	--color-jcb-textMain: #0f172a;
+	--color-jcb-textMuted: #64748b;
+	--color-jcb-action: #1e293b;
+}
+
+@layer base {
+	body {
+		background-color: var(--color-jcb-background);
+		color: var(--color-jcb-textMain);
+	}
 }
