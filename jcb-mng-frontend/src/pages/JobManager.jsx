@@ -86,22 +86,22 @@ const JobManager = () => {
                 {user?.role === 'ADMIN' ? 'Job Assignments' : 'My Operator Dashboard'}
             </h2>
 
-            {loading && <p className="mb-4 text-sm text-gray-400">Loading job assignments...</p>}
+            {loading && <p className="mb-4 text-sm text-jcb-textMuted">Loading job assignments...</p>}
 
             {/* ADMIN ASSIGNMENT FORM */}
             {user?.role === 'ADMIN' && (
-                <div className="mb-8 bg-jcb-surface p-6 rounded-lg border border-gray-800 shadow-md">
+                <div className="mb-8 bg-jcb-surface p-6 rounded-lg border border-jcb-border shadow-md">
                     <h3 className="text-xl font-bold text-jcb-yellow mb-4">Assign Operator to a Booking</h3>
-                    {error && <p className="text-red-400 mb-4">{error}</p>}
+                    {error && <p className="text-red-600 mb-4">{error}</p>}
                     
                     <form onSubmit={handleAssign} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                         <div>
-                            <label className="block text-sm text-gray-400 mb-1">Approved Booking</label>
+                            <label className="block text-sm text-jcb-textMuted mb-1">Approved Booking</label>
                             <select 
                                 value={bookingId} 
                                 onChange={(e) => setBookingId(e.target.value)} 
                                 required
-                                className="w-full px-3 py-2 bg-jcb-dark border border-gray-700 rounded text-gray-100 focus:border-jcb-yellow outline-none"
+                                className="w-full px-3 py-2 bg-jcb-background border border-jcb-border rounded text-jcb-textMain focus:border-jcb-yellow outline-none"
                             >
                                 <option value="">-- Choose Booking --</option>
                                 {approvedBookings.map(b => (
@@ -110,12 +110,12 @@ const JobManager = () => {
                             </select>
                         </div>
                         <div>
-                            <label className="block text-sm text-gray-400 mb-1">Select Operator</label>
+                            <label className="block text-sm text-jcb-textMuted mb-1">Select Operator</label>
                             <select 
                                 value={operatorUsername} 
                                 onChange={(e) => setOperatorUsername(e.target.value)} 
                                 required
-                                className="w-full px-3 py-2 bg-jcb-dark border border-gray-700 rounded text-gray-100 focus:border-jcb-yellow outline-none"
+                                className="w-full px-3 py-2 bg-jcb-background border border-jcb-border rounded text-jcb-textMain focus:border-jcb-yellow outline-none"
                             >
                                 <option value="">-- Choose Operator --</option>
                                 {operators.map(op => (
@@ -124,7 +124,7 @@ const JobManager = () => {
                             </select>
                         </div>
                         <div>
-                            <button type="submit" className="w-full bg-jcb-yellow text-gray-900 font-bold py-2 px-6 rounded hover:bg-yellow-500 transition">
+                            <button type="submit" className="w-full bg-jcb-yellow text-jcb-textMain font-bold py-2 px-6 rounded hover:bg-yellow-500 transition">
                                 Assign Operator
                             </button>
                         </div>
@@ -133,9 +133,9 @@ const JobManager = () => {
             )}
 
             {/* JOBS DATA TABLE */}
-            <div className="bg-jcb-surface rounded-lg border border-gray-800 overflow-hidden shadow-md">
-                <table className="w-full text-left text-sm text-gray-400">
-                    <thead className="bg-gray-800 text-gray-100 uppercase text-xs">
+            <div className="bg-jcb-surface rounded-lg border border-jcb-border overflow-hidden shadow-md">
+                <table className="w-full text-left text-sm text-jcb-textMuted">
+                    <thead className="bg-jcb-background text-jcb-textMain uppercase text-xs">
                         <tr>
                             <th className="px-6 py-4">Job ID</th>
                             <th className="px-6 py-4">Booking #</th>
@@ -146,20 +146,20 @@ const JobManager = () => {
                             <th className="px-6 py-4">Actions</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-800">
+                    <tbody className="divide-y divide-jcb-border">
                         {jobs.length === 0 ? (
-                            <tr><td colSpan="7" className="px-6 py-8 text-center text-gray-500">No jobs found.</td></tr>
+                            <tr><td colSpan="7" className="px-6 py-8 text-center text-jcb-textMuted">No jobs found.</td></tr>
                         ) : jobs.map((j) => (
-                            <tr key={j.id} className="hover:bg-gray-800/50 transition">
-                                <td className="px-6 py-4 text-gray-100">JOB-{j.id}</td>
+                            <tr key={j.id} className="hover:bg-jcb-background transition">
+                                <td className="px-6 py-4 text-jcb-textMain">JOB-{j.id}</td>
                                 <td className="px-6 py-4">#{j.bookingId}</td>
-                                <td className="px-6 py-4 text-gray-200 font-medium">{j.machineDetails}</td>
+                                <td className="px-6 py-4 text-jcb-textMain font-medium">{j.machineDetails}</td>
                                 <td className="px-6 py-4">{j.dates}</td>
                                 {user?.role === 'ADMIN' && <td className="px-6 py-4 text-jcb-yellow font-bold">{j.operatorName}</td>}
                                 <td className="px-6 py-4">
                                     <span className={`rounded px-2 py-1 text-xs font-bold ${
                                         j.status === 'COMPLETED' ? 'bg-green-900/50 text-green-400' :
-                                        j.status === 'IN_PROGRESS' ? 'bg-blue-900/50 text-blue-400' :
+                                        j.status === 'IN_PROGRESS' ? 'bg-blue-900/50 text-blue-600' :
                                         'bg-jcb-yellow/20 text-jcb-yellow'
                                     }`}>
                                         {j.status}
@@ -170,7 +170,7 @@ const JobManager = () => {
                                     <div className="flex gap-3">
                                         {/* OPERATOR ACTIONS */}
                                         {user?.role === 'OPERATOR' && j.status === 'ASSIGNED' && (
-                                            <button onClick={() => handleStatusUpdate(j.id, 'IN_PROGRESS')} className="text-blue-400 hover:text-blue-300 font-medium">Start Job</button>
+                                            <button onClick={() => handleStatusUpdate(j.id, 'IN_PROGRESS')} className="text-blue-600 hover:text-blue-700 font-medium">Start Job</button>
                                         )}
                                         {user?.role === 'OPERATOR' && j.status === 'IN_PROGRESS' && (
                                             <button onClick={() => handleStatusUpdate(j.id, 'COMPLETED')} className="text-green-400 hover:text-green-300 font-medium">Mark Done</button>
@@ -178,7 +178,7 @@ const JobManager = () => {
 
                                         {/* ADMIN ACTIONS */}
                                         {user?.role === 'ADMIN' && (
-                                            <button onClick={() => handleDelete(j.id)} className="text-red-400 hover:text-red-300 font-medium">Delete</button>
+                                            <button onClick={() => handleDelete(j.id)} className="text-red-600 hover:text-red-700 font-medium">Delete</button>
                                         )}
                                     </div>
                                 </td>
