@@ -29,11 +29,13 @@ const UserManager = () => {
     const resetForm = () => {
         setEditingUserId(null);
         setFormData({ username: '', email: '', password: '', role: 'CUSTOMER' });
+        setError('');
     };
 
     const handleEdit = (selectedUser) => {
         setEditingUserId(selectedUser.id);
         setFormData({ username: selectedUser.username, email: selectedUser.email, password: '', role: selectedUser.role });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         setError('');
     };
 
@@ -57,7 +59,7 @@ const UserManager = () => {
     };
 
     const handleDelete = async (id) => {
-        if (window.confirm("Are you sure you want to delete this user?")) {
+        if (window.confirm("Are you sure you want to permanently remove this user? This action cannot be undone.")) {
             setError('');
             try {
                 await deleteUser(id);
@@ -70,107 +72,148 @@ const UserManager = () => {
     };
 
     return (
-        <div className="max-w-6xl mx-auto">
-            {/* Page Header */}
-            <div className="mb-8">
-                <h2 className="text-3xl font-extrabold tracking-tight text-jcb-textMain">User Directory</h2>
-                <p className="text-sm text-jcb-textMuted mt-1">Manage system access, operators, and customer accounts.</p>
+        <div className="max-w-6xl mx-auto pb-12">
+            {/* PAGE HEADER */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 pb-6 border-b border-jcb-border">
+                <div>
+                    <h2 className="text-3xl font-extrabold tracking-tight text-jcb-textMain">User Directory</h2>
+                    <p className="text-sm text-jcb-textMuted mt-1.5 font-medium">Manage system access, operator assignments, and customer accounts.</p>
+                </div>
+                <div className="mt-4 md:mt-0 flex items-center bg-white border border-jcb-border rounded-lg px-4 py-2 shadow-sm">
+                    <div className="w-2 h-2 rounded-full bg-green-500 mr-2 animate-pulse"></div>
+                    <span className="text-sm font-bold text-jcb-textMain">{usersList.length} <span className="text-jcb-textMuted font-medium">Active Users</span></span>
+                </div>
             </div>
 
+            {/* ALERT BANNER */}
             {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-6 text-sm font-medium">
-                    {typeof error === 'string' ? error : 'The request could not be completed.'}
+                <div className="flex items-center bg-red-50 border-l-4 border-red-500 text-red-700 p-4 rounded-r-md mb-8 shadow-sm">
+                    <svg className="w-5 h-5 mr-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"></path></svg>
+                    <span className="text-sm font-semibold">{typeof error === 'string' ? error : 'The request could not be completed.'}</span>
                 </div>
             )}
 
             {/* CREATE / EDIT USER CARD */}
-            <div className="bg-jcb-surface border border-jcb-border shadow-sm rounded-lg p-6 mb-8">
-                <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-bold text-jcb-textMain">{editingUserId ? 'Edit User' : 'Register New User'}</h3>
-                    {editingUserId && <button type="button" onClick={resetForm} className="text-sm text-jcb-textMuted hover:text-jcb-textMain">Cancel</button>}
+            <div className="bg-white border border-jcb-border shadow-sm rounded-xl overflow-hidden mb-10 transition-all">
+                <div className="bg-gray-50 px-6 py-4 border-b border-jcb-border flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <div className={`p-1.5 rounded-md ${editingUserId ? 'bg-blue-100 text-blue-600' : 'bg-jcb-brand/20 text-yellow-700'}`}>
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path></svg>
+                        </div>
+                        <h3 className="text-base font-bold text-jcb-textMain">{editingUserId ? 'Modify User Profile' : 'Register New User'}</h3>
+                    </div>
+                    {editingUserId && (
+                        <button type="button" onClick={resetForm} className="text-sm font-semibold text-gray-500 hover:text-gray-800 bg-white border border-gray-200 px-3 py-1.5 rounded-md shadow-sm transition">
+                            Cancel Edit
+                        </button>
+                    )}
                 </div>
                 
-                <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-                    <div>
-                        <label className="block text-xs font-bold text-jcb-textMuted uppercase mb-1">Username</label>
-                        <input type="text" value={formData.username} onChange={(e) => setFormData({...formData, username: e.target.value})} required disabled={Boolean(editingUserId)}
-                            className="w-full px-3 py-2 bg-white border border-jcb-border rounded-md text-sm text-jcb-textMain focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 focus:border-jcb-brand transition-all" />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-jcb-textMuted uppercase mb-1">Email</label>
-                        <input type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} required
-                            className="w-full px-3 py-2 bg-white border border-jcb-border rounded-md text-sm text-jcb-textMain focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 focus:border-jcb-brand transition-all" />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-jcb-textMuted uppercase mb-1">Password</label>
-                        <input type="password" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} required={!editingUserId}
-                            className="w-full px-3 py-2 bg-white border border-jcb-border rounded-md text-sm text-jcb-textMain focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 focus:border-jcb-brand transition-all" />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-jcb-textMuted uppercase mb-1">Assign Role</label>
-                        <select value={formData.role} onChange={(e) => setFormData({...formData, role: e.target.value})}
-                            className="w-full px-3 py-2 bg-white border border-jcb-border rounded-md text-sm text-jcb-textMain focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 focus:border-jcb-brand transition-all">
-                            <option value="CUSTOMER">Customer</option>
-                            <option value="OPERATOR">Operator</option>
-                            <option value="OPERATION_MANAGER">Operation Manager</option>
-                            <option value="DISPATCH_MANAGER">Dispatch Manager</option>
-                            <option value="FINANCE_OFFICER">Finance Officer</option>
-                            <option value="ADMIN">System Admin</option>
-                        </select>
-                    </div>
-                    <div>
-                        <button type="submit" className="w-full bg-jcb-brand text-black font-bold py-2 px-4 rounded-md hover:bg-yellow-400 transition shadow-sm">
-                            {isSaving ? 'Saving...' : editingUserId ? 'Save Changes' : 'Create User'}
-                        </button>
+                <form onSubmit={handleCreate} className="p-6">
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-5 items-end">
+                        <div className="md:col-span-1">
+                            <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">Username</label>
+                            <input type="text" value={formData.username} onChange={(e) => setFormData({...formData, username: e.target.value})} required disabled={Boolean(editingUserId)}
+                                className="w-full px-4 py-2.5 bg-white border border-jcb-border rounded-lg text-sm text-jcb-textMain focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 focus:border-jcb-brand transition-all disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed" />
+                        </div>
+                        <div className="md:col-span-1">
+                            <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">Email Address</label>
+                            <input type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} required
+                                className="w-full px-4 py-2.5 bg-white border border-jcb-border rounded-lg text-sm text-jcb-textMain focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 focus:border-jcb-brand transition-all" />
+                        </div>
+                        <div className="md:col-span-1">
+                            <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">Password</label>
+                            <input type="password" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} required={!editingUserId} placeholder={editingUserId ? "••••••••" : ""}
+                                className="w-full px-4 py-2.5 bg-white border border-jcb-border rounded-lg text-sm text-jcb-textMain focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 focus:border-jcb-brand transition-all placeholder:text-gray-300" />
+                        </div>
+                        <div className="md:col-span-1">
+                            <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">System Role</label>
+                            <select value={formData.role} onChange={(e) => setFormData({...formData, role: e.target.value})}
+                                className="w-full px-4 py-2.5 bg-white border border-jcb-border rounded-lg text-sm text-jcb-textMain font-medium focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 focus:border-jcb-brand transition-all appearance-none cursor-pointer">
+                                <option value="CUSTOMER">Customer</option>
+                                <option value="OPERATOR">Operator</option>
+                                <option value="OPERATION_MANAGER">Operation Manager</option>
+                                <option value="DISPATCH_MANAGER">Dispatch Manager</option>
+                                <option value="FINANCE_OFFICER">Finance Officer</option>
+                                <option value="ADMIN">System Admin</option>
+                            </select>
+                        </div>
+                        <div className="md:col-span-1">
+                            <button type="submit" disabled={isSaving} className="w-full bg-jcb-brand text-black font-bold py-2.5 px-4 rounded-lg hover:bg-yellow-400 transition shadow-sm disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                                {isSaving ? (
+                                    <><svg className="animate-spin h-4 w-4 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Saving...</>
+                                ) : editingUserId ? 'Save Changes' : 'Create User'}
+                            </button>
+                        </div>
                     </div>
                 </form>
             </div>
 
             {/* USERS DATA TABLE */}
-            <div className="bg-jcb-surface border border-jcb-border shadow-sm rounded-lg overflow-hidden">
-                <table className="w-full text-left text-sm">
-                    <thead className="bg-gray-50 border-b border-jcb-border">
-                        <tr>
-                            <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">ID</th>
-                            <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Username</th>
-                            <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Email Address</th>
-                            <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">System Role</th>
-                            <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-jcb-border">
-                        {isLoading ? (
-                            <tr><td colSpan="5" className="px-6 py-8 text-center text-jcb-textMuted">Loading users...</td></tr>
-                        ) : usersList.length === 0 ? (
-                            <tr><td colSpan="5" className="px-6 py-8 text-center text-jcb-textMuted">No users found.</td></tr>
-                        ) : usersList.map((u) => (
-                            <tr key={u.id} className="hover:bg-gray-50/50 transition">
-                                <td className="px-6 py-4 text-jcb-textMuted font-medium">#{u.id}</td>
-                                <td className="px-6 py-4 text-jcb-textMain font-bold">{u.username}</td>
-                                <td className="px-6 py-4 text-jcb-textMuted">{u.email}</td>
-                                <td className="px-6 py-4">
-                                    {/* Dynamic Colored Pills based on Role */}
-                                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-                                        u.role === 'ADMIN' ? 'bg-purple-100 text-purple-800' :
-                                        u.role === 'CUSTOMER' ? 'bg-blue-100 text-blue-800' :
-                                        u.role === 'OPERATOR' ? 'bg-orange-100 text-orange-800' :
-                                        'bg-gray-100 text-gray-800'
-                                    }`}>
-                                        {u.role}
-                                    </span>
-                                </td>
-                                <td className="px-6 py-4">
-                                    <button onClick={() => handleEdit(u)} className="text-blue-600 hover:text-blue-800 font-medium text-sm transition mr-4">
-                                        Edit
-                                    </button>
-                                    <button onClick={() => handleDelete(u.id)} className="text-red-600 hover:text-red-800 font-medium text-sm transition">
-                                        Delete
-                                    </button>
-                                </td>
+            <div className="bg-white border border-jcb-border shadow-sm rounded-xl overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm whitespace-nowrap">
+                        <thead className="bg-gray-50 border-b border-jcb-border">
+                            <tr>
+                                <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">ID</th>
+                                <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Username</th>
+                                <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Email Address</th>
+                                <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">System Role</th>
+                                <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider text-right">Actions</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                            {isLoading ? (
+                                <tr>
+                                    <td colSpan="5" className="px-6 py-12 text-center text-jcb-textMuted">
+                                        <div className="flex flex-col items-center justify-center">
+                                            <svg className="animate-spin h-8 w-8 text-gray-300 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                            <span className="font-medium">Loading directory...</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ) : usersList.length === 0 ? (
+                                <tr>
+                                    <td colSpan="5" className="px-6 py-12 text-center text-jcb-textMuted">
+                                        <div className="flex flex-col items-center justify-center">
+                                            <div className="bg-gray-50 p-3 rounded-full mb-3">
+                                                <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                                            </div>
+                                            <span className="font-medium">No users found in the system.</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ) : usersList.map((u) => (
+                                <tr key={u.id} className="hover:bg-blue-50/30 transition-colors group">
+                                    <td className="px-6 py-4 text-jcb-textMuted font-medium">#{u.id}</td>
+                                    <td className="px-6 py-4 text-jcb-textMain font-bold">{u.username}</td>
+                                    <td className="px-6 py-4 text-jcb-textMuted">{u.email}</td>
+                                    <td className="px-6 py-4">
+                                        <span className={`px-3 py-1 rounded-full text-xs font-bold border ${
+                                            u.role === 'ADMIN' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                                            u.role === 'CUSTOMER' ? 'bg-gray-100 text-gray-700 border-gray-200' :
+                                            u.role === 'OPERATOR' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                            u.role === 'FINANCE_OFFICER' ? 'bg-green-50 text-green-700 border-green-200' :
+                                            'bg-orange-50 text-orange-700 border-orange-200'
+                                        }`}>
+                                            {u.role.replace('_', ' ')}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4 text-right">
+                                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button onClick={() => handleEdit(u)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition" title="Edit User">
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                                            </button>
+                                            <button onClick={() => handleDelete(u.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition" title="Delete User">
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     );
