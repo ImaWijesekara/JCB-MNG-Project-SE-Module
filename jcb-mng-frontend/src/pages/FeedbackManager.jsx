@@ -1,57 +1,80 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext, useMemo } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { submitFeedback, getAllFeedback, getMyFeedback, deleteFeedback } from '../services/feedbackService';
 
 const FeedbackManager = () => {
     const { user } = useContext(AuthContext);
+    
+    // Data State
     const [feedbacks, setFeedbacks] = useState([]);
+    const [searchTerm, setSearchTerm] = useState('');
+    
+    // UI State
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [deletingId, setDeletingId] = useState(null);
+    const [commentError, setCommentError] = useState('');
     
     // Form State for Customers
     const [rating, setRating] = useState(5);
+    const [hoverRating, setHoverRating] = useState(0);
     const [comment, setComment] = useState('');
 
+    const loadFeedbacks = async () => {
+        if (!user) return;
+        setIsLoading(true);
+        setError('');
+        try {
+            const data = user.role === 'ADMIN'
+                ? await getAllFeedback()
+                : await getMyFeedback();
+            setFeedbacks(data);
+        } catch (err) {
+            setError(err.response?.data || 'Failed to load feedback records.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const loadFeedbacks = async () => {
-            if (!user) return;
-
-            setIsLoading(true);
-            setError('');
-            try {
-                const data = user.role === 'ADMIN'
-                    ? await getAllFeedback()
-                    : await getMyFeedback();
-                setFeedbacks(data);
-            } catch (err) {
-                setError(err.response?.data || 'Failed to load feedback. Please try again.');
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
         loadFeedbacks();
     }, [user]);
 
+    // VIVA FLEX 1: Live Search Filtering for Admins
+    const filteredFeedbacks = useMemo(() => {
+        return feedbacks.filter(f => {
+            const searchLower = searchTerm.toLowerCase();
+            const customerName = (f.username || f.customerName || '').toLowerCase();
+            const message = (f.message || f.comment || '').toLowerCase();
+            return customerName.includes(searchLower) || message.includes(searchLower);
+        });
+    }, [feedbacks, searchTerm]);
+
+    // VIVA FLEX 2: Client-side Validation
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
         setSuccess('');
+        setCommentError('');
+
+        if (comment.trim().length < 10) {
+            setCommentError('Please provide a slightly more detailed review (minimum 10 characters).');
+            return;
+        }
+
         setIsSubmitting(true);
         try {
-            const feedback = await submitFeedback(comment, rating);
-            setFeedbacks((currentFeedbacks) => [feedback, ...currentFeedbacks]); // Add new to top
-            setSuccess('Thank you! Your feedback has been successfully submitted.');
+            const feedback = await submitFeedback({ message: comment.trim(), rating }); // Adjusted payload structure based on typical Spring Boot DTOs
+            setFeedbacks((current) => [feedback, ...current]);
+            setSuccess('Thank you! Your feedback has been successfully published.');
             setComment('');
             setRating(5);
-            
-            // Clear success message after 4 seconds
-            setTimeout(() => setSuccess(''), 4000);
+            setHoverRating(0);
+            setTimeout(() => setSuccess(''), 5000);
         } catch (err) {
-            setError(err.response?.data || "Failed to submit feedback");
+            setError(err.response?.data || "Failed to submit feedback.");
         } finally {
             setIsSubmitting(false);
         }
@@ -63,27 +86,29 @@ const FeedbackManager = () => {
             setDeletingId(id);
             try {
                 await deleteFeedback(id);
-                setFeedbacks((currentFeedbacks) => currentFeedbacks.filter(f => f.id !== id));
+                setFeedbacks((current) => current.filter(f => f.id !== id));
+                setSuccess('Review successfully deleted from the system.');
+                setTimeout(() => setSuccess(''), 4000);
             } catch (err) {
-                setError(err.response?.data || "Failed to delete feedback");
+                setError(err.response?.data || "Failed to delete feedback.");
             } finally {
                 setDeletingId(null);
             }
         }
     };
 
-    // Calculate Metrics
-    const totalReviews = feedbacks.length;
+    // Metrics
+    const totalReviews = filteredFeedbacks.length;
     const avgRating = totalReviews > 0 
-        ? (feedbacks.reduce((acc, curr) => acc + curr.rating, 0) / totalReviews).toFixed(1) 
+        ? (filteredFeedbacks.reduce((acc, curr) => acc + curr.rating, 0) / totalReviews).toFixed(1) 
         : "0.0";
 
-    // Enterprise SVG Star Renderer
+    // Enterprise Static SVG Star Renderer (for the table)
     const renderStars = (count) => {
         return (
             <div className="flex items-center gap-0.5">
                 {[...Array(5)].map((_, i) => (
-                    <svg key={i} className={`w-4 h-4 ${i < count ? 'text-jcb-brand fill-current' : 'text-gray-200 fill-current'}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                    <svg key={i} className={`w-4 h-4 ${i < count ? 'text-jcb-brand fill-current drop-shadow-sm' : 'text-gray-200 fill-current'}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
                         <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                     </svg>
                 ))}
@@ -103,7 +128,20 @@ const FeedbackManager = () => {
                         {user?.role === 'ADMIN' ? 'Monitor system satisfaction and manage customer reviews.' : 'Share your rental experience to help us improve.'}
                     </p>
                 </div>
-                <div className="mt-4 md:mt-0 flex items-center gap-4">
+                <div className="mt-4 md:mt-0 flex flex-wrap items-center gap-4">
+                    {/* Live Search (Admins Only) */}
+                    {user?.role === 'ADMIN' && (
+                        <div className="relative">
+                            <svg className="w-4 h-4 absolute left-3 top-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                            <input 
+                                type="text" 
+                                placeholder="Search reviews..." 
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="pl-9 pr-4 py-2 bg-white border border-jcb-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 w-full sm:w-64 transition-shadow"
+                            />
+                        </div>
+                    )}
                     <div className="bg-white border border-jcb-border rounded-lg px-4 py-2 shadow-sm flex flex-col items-center">
                         <span className="text-xs font-bold text-jcb-textMuted uppercase">Total Reviews</span>
                         <span className="text-lg font-black text-jcb-textMain">{totalReviews}</span>
@@ -144,33 +182,51 @@ const FeedbackManager = () => {
                         <h3 className="text-base font-bold text-jcb-textMain">Submit New Review</h3>
                     </div>
                     
-                    <form onSubmit={handleSubmit} className="p-6 space-y-5">
-                        <div>
-                            <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">Rating</label>
-                            <select 
-                                value={rating} 
-                                onChange={(e) => setRating(Number(e.target.value))}
-                                className="w-full md:w-64 px-4 py-2.5 bg-white border border-jcb-border rounded-lg text-sm text-jcb-textMain font-medium focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 focus:border-jcb-brand transition-all appearance-none cursor-pointer"
-                            >
-                                <option value={5}>5 Stars - Excellent Experience</option>
-                                <option value={4}>4 Stars - Good Experience</option>
-                                <option value={3}>3 Stars - Average</option>
-                                <option value={2}>2 Stars - Below Expectations</option>
-                                <option value={1}>1 Star - Poor Experience</option>
-                            </select>
+                    <form onSubmit={handleSubmit} className="p-6">
+                        <div className="mb-5">
+                            <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-2">Overall Rating</label>
+                            {/* VIVA FLEX 3: Interactive SVG Star Rating */}
+                            <div className="flex gap-2">
+                                {[1, 2, 3, 4, 5].map((star) => (
+                                    <button
+                                        type="button"
+                                        key={star}
+                                        onClick={() => setRating(star)}
+                                        onMouseEnter={() => setHoverRating(star)}
+                                        onMouseLeave={() => setHoverRating(0)}
+                                        className="focus:outline-none transition-transform hover:scale-110"
+                                    >
+                                        <svg 
+                                            className={`w-8 h-8 transition-colors duration-150 ${star <= (hoverRating || rating) ? 'text-jcb-brand fill-current drop-shadow-md' : 'text-gray-200 fill-current'}`} 
+                                            xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"
+                                        >
+                                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                        </svg>
+                                    </button>
+                                ))}
+                            </div>
+                            <p className="text-xs text-jcb-textMuted mt-1.5 font-medium">
+                                {rating === 5 ? 'Excellent' : rating === 4 ? 'Good' : rating === 3 ? 'Average' : rating === 2 ? 'Poor' : 'Terrible'}
+                            </p>
                         </div>
-                        <div>
+
+                        <div className="mb-6">
                             <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">Your Comment</label>
                             <textarea 
                                 value={comment} 
-                                onChange={(e) => setComment(e.target.value)} 
-                                required rows="3"
+                                onChange={(e) => {
+                                    setComment(e.target.value);
+                                    if(e.target.value.trim().length >= 10) setCommentError('');
+                                }} 
+                                rows="3"
                                 placeholder="Tell us about the machine quality, operator service, or overall experience..."
-                                className="w-full px-4 py-2.5 bg-white border border-jcb-border rounded-lg text-sm text-jcb-textMain focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 focus:border-jcb-brand transition-all resize-none placeholder:text-gray-300" 
+                                className={`w-full px-4 py-2.5 bg-white border ${commentError ? 'border-red-500 focus:ring-red-500' : 'border-jcb-border focus:ring-jcb-brand/50'} rounded-lg text-sm text-jcb-textMain focus:outline-none focus:ring-2 transition-all resize-none placeholder:text-gray-300`}
                             />
+                            {commentError && <p className="mt-1.5 text-xs font-bold text-red-500">{commentError}</p>}
                         </div>
-                        <div className="pt-2">
-                            <button type="submit" disabled={isSubmitting || comment.trim() === ''} className="bg-jcb-brand text-black font-bold py-2.5 px-6 rounded-lg hover:bg-yellow-400 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm flex items-center justify-center gap-2">
+
+                        <div>
+                            <button type="submit" disabled={isSubmitting} className="bg-jcb-brand text-black font-bold py-2.5 px-6 rounded-lg hover:bg-yellow-400 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm flex items-center justify-center gap-2">
                                 {isSubmitting ? (
                                     <><svg className="animate-spin h-4 w-4 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Publishing...</>
                                 ) : 'Publish Review'}
@@ -204,20 +260,20 @@ const FeedbackManager = () => {
                                         </div>
                                     </td>
                                 </tr>
-                            ) : feedbacks.length === 0 ? (
+                            ) : filteredFeedbacks.length === 0 ? (
                                 <tr>
                                     <td colSpan={user?.role === 'ADMIN' ? 6 : 5} className="px-6 py-12 text-center text-jcb-textMuted">
                                         <div className="flex flex-col items-center justify-center">
                                             <div className="bg-gray-50 p-3 rounded-full mb-3">
                                                 <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
                                             </div>
-                                            <span className="font-medium">No reviews have been submitted yet.</span>
+                                            <span className="font-medium">{searchTerm ? 'No reviews match your search.' : 'No reviews have been submitted yet.'}</span>
                                         </div>
                                     </td>
                                 </tr>
-                            ) : feedbacks.map((f) => (
+                            ) : filteredFeedbacks.map((f) => (
                                 <tr key={f.id} className="hover:bg-blue-50/30 transition-colors group">
-                                    <td className="px-6 py-4 text-jcb-textMuted font-medium">#{f.id}</td>
+                                    <td className="px-6 py-4 text-jcb-textMuted font-mono font-medium">#{f.id}</td>
                                     {user?.role === 'ADMIN' && <td className="px-6 py-4 font-bold text-jcb-textMain">{f.username || f.customerName}</td>}
                                     <td className="px-6 py-4">
                                         {renderStars(f.rating)}
@@ -226,7 +282,7 @@ const FeedbackManager = () => {
                                         {f.message || f.comment}
                                     </td>
                                     <td className="px-6 py-4 text-jcb-textMuted">
-                                        {new Date(f.submittedAt || f.date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                                        {new Date(f.submittedAt || f.date || new Date()).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
                                     </td>
                                     {user?.role === 'ADMIN' && (
                                         <td className="px-6 py-4 text-right">
