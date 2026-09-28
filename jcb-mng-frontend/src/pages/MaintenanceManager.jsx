@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext, useCallback } from 'react';
+import { useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { getAllMaintenance, getMyTasks, scheduleMaintenance, updateMaintenance, deleteMaintenance, updateTaskStatus } from '../services/maintenanceService';
 import { getAllMachines } from '../services/machineService';
@@ -6,9 +6,15 @@ import { getAllUsers } from '../services/userService';
 
 const MaintenanceManager = () => {
     const { user } = useContext(AuthContext);
+    
+    const isManager = user?.role === 'ADMIN' || user?.role === 'OPERATION_MANAGER';
+    const isOperator = user?.role === 'OPERATOR';
+
+    // Data State
     const [tasks, setTasks] = useState([]);
     const [machines, setMachines] = useState([]);
     const [operators, setOperators] = useState([]);
+    const [searchTerm, setSearchTerm] = useState('');
     
     // UI State
     const [isLoading, setIsLoading] = useState(true);
@@ -17,6 +23,7 @@ const MaintenanceManager = () => {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [editingTaskId, setEditingTaskId] = useState(null);
+    const [fieldErrors, setFieldErrors] = useState({});
     
     // Form fields
     const [machineId, setMachineId] = useState('');
@@ -27,41 +34,70 @@ const MaintenanceManager = () => {
 
     const loadData = useCallback(async () => {
         setIsLoading(true);
+        setError('');
         try {
-            if (user?.role === 'ADMIN') {
+            if (isManager) {
                 const [taskData, machineData, userData] = await Promise.all([
-                    getAllMaintenance(),
-                    getAllMachines(),
-                    getAllUsers()
+                    getAllMaintenance().catch(() => []),
+                    getAllMachines().catch(() => []),
+                    getAllUsers().catch(() => [])
                 ]);
                 setTasks(taskData);
                 setMachines(machineData);
-                // Filter users to only show OPERATORS for task assignment
                 setOperators(userData.filter(u => u.role === 'OPERATOR'));
-            } else if (user?.role === 'OPERATOR') {
-                const taskData = await getMyTasks();
-                setTasks(taskData);
+            } else if (isOperator) {
+                setTasks(await getMyTasks().catch(() => []));
             }
         } catch (err) {
-            setError(err.response?.data || 'Failed to load maintenance data.');
+            setError(err.response?.data || 'Failed to sync maintenance data.');
         } finally {
             setIsLoading(false);
         }
-    }, [user]);
+    }, [isManager, isOperator]);
 
     useEffect(() => {
         loadData();
     }, [loadData]);
+
+    // VIVA FLEX 1: Live Search Filtering
+    const filteredTasks = useMemo(() => {
+        return tasks.filter(t => {
+            const search = searchTerm.toLowerCase();
+            return (
+                t.machineDetails?.toLowerCase().includes(search) ||
+                t.operatorName?.toLowerCase().includes(search) ||
+                t.operatorUsername?.toLowerCase().includes(search) ||
+                t.description?.toLowerCase().includes(search) ||
+                String(t.id).includes(search)
+            );
+        });
+    }, [tasks, searchTerm]);
+
+    const handleInputChange = (setter, fieldName) => (e) => {
+        setter(e.target.value);
+        if (fieldErrors[fieldName]) {
+            setFieldErrors({ ...fieldErrors, [fieldName]: null });
+        }
+    };
+
+    // VIVA FLEX 2: Client-side Validation
+    const validateForm = () => {
+        const errors = {};
+        if (!machineId) errors.machineId = "Please select a machine.";
+        if (!operatorUsername) errors.operatorUsername = "Please assign a technician.";
+        if (!serviceDate) errors.serviceDate = "Service date is required.";
+        if (description.trim().length < 5) errors.description = "Please provide a more detailed description.";
+        
+        setFieldErrors(errors);
+        return Object.keys(errors).length === 0;
+    };
 
     const handleSchedule = async (e) => {
         e.preventDefault();
         setError('');
         setSuccess('');
         
-        if (!machineId || !operatorUsername || !description.trim() || !serviceDate) {
-            setError('Please complete all required fields.');
-            return;
-        }
+        if (!validateForm()) return;
         
         setIsSaving(true);
         try {
@@ -86,12 +122,13 @@ const MaintenanceManager = () => {
     const handleEdit = (task) => {
         setEditingTaskId(task.id);
         setMachineId(String(task.machineId));
-        setOperatorUsername(task.operatorUsername || task.operatorName); // Handle depending on DTO
+        setOperatorUsername(task.operatorUsername || task.operatorName);
         setDescription(task.description);
         setServiceDate(task.serviceDate);
         setTaskStatus(task.status);
         setError('');
         setSuccess('');
+        setFieldErrors({});
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
@@ -103,14 +140,15 @@ const MaintenanceManager = () => {
         setDescription('');
         setServiceDate('');
         setError('');
+        setFieldErrors({});
     };
 
     const handleDelete = async (taskId) => {
-        if (!window.confirm('Are you sure you want to delete this maintenance task?')) return;
+        if (!window.confirm('Are you sure you want to permanently delete this repair ticket?')) return;
         setError('');
         try {
             await deleteMaintenance(taskId);
-            setTasks((currentTasks) => currentTasks.filter((task) => task.id !== taskId));
+            setTasks((current) => current.filter((task) => task.id !== taskId));
             if (editingTaskId === taskId) handleCancelEdit();
             setSuccess('Maintenance task removed.');
             setTimeout(() => setSuccess(''), 4000);
@@ -136,9 +174,9 @@ const MaintenanceManager = () => {
     };
 
     // Calculate Metrics
-    const totalTasks = tasks.length;
-    const pendingTasks = tasks.filter(t => t.status === 'SCHEDULED' || t.status === 'IN_PROGRESS').length;
-    const completedTasks = tasks.filter(t => t.status === 'COMPLETED').length;
+    const totalTasks = filteredTasks.length;
+    const pendingTasks = filteredTasks.filter(t => t.status === 'SCHEDULED' || t.status === 'IN_PROGRESS').length;
+    const completedTasks = filteredTasks.filter(t => t.status === 'COMPLETED').length;
 
     return (
         <div className="max-w-6xl mx-auto pb-12">
@@ -146,13 +184,24 @@ const MaintenanceManager = () => {
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 pb-6 border-b border-jcb-border">
                 <div>
                     <h2 className="text-3xl font-extrabold tracking-tight text-jcb-textMain">
-                        {user?.role === 'ADMIN' ? 'Fleet Maintenance' : 'Assigned Repair Queue'}
+                        {isManager ? 'Fleet Maintenance' : 'Assigned Repair Queue'}
                     </h2>
                     <p className="text-sm text-jcb-textMuted mt-1.5 font-medium">
-                        {user?.role === 'ADMIN' ? 'Schedule repairs, dispatch operators, and track service history.' : 'View your assigned machines and update repair statuses.'}
+                        {isManager ? 'Schedule repairs, dispatch technicians, and track service history.' : 'View your assigned machines and update repair statuses.'}
                     </p>
                 </div>
-                <div className="mt-4 md:mt-0 flex items-center gap-3">
+                <div className="mt-4 md:mt-0 flex flex-wrap items-center gap-3">
+                    {/* Search Bar */}
+                    <div className="relative">
+                        <svg className="w-4 h-4 absolute left-3 top-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        <input 
+                            type="text" 
+                            placeholder="Search logs..." 
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-9 pr-4 py-2 bg-white border border-jcb-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 w-full sm:w-56 transition-shadow"
+                        />
+                    </div>
                     <div className="bg-white border border-jcb-border rounded-lg px-4 py-2 shadow-sm flex flex-col items-center">
                         <span className="text-xs font-bold text-jcb-textMuted uppercase">Pending</span>
                         <span className="text-lg font-black text-yellow-600">{pendingTasks}</span>
@@ -160,10 +209,6 @@ const MaintenanceManager = () => {
                     <div className="bg-white border border-jcb-border rounded-lg px-4 py-2 shadow-sm flex flex-col items-center">
                         <span className="text-xs font-bold text-jcb-textMuted uppercase">Completed</span>
                         <span className="text-lg font-black text-green-600">{completedTasks}</span>
-                    </div>
-                    <div className="bg-white border border-jcb-border rounded-lg px-4 py-2 shadow-sm flex flex-col items-center">
-                        <span className="text-xs font-bold text-jcb-textMuted uppercase">Total Logs</span>
-                        <span className="text-lg font-black text-jcb-textMain">{totalTasks}</span>
                     </div>
                 </div>
             </div>
@@ -182,8 +227,8 @@ const MaintenanceManager = () => {
                 </div>
             )}
 
-            {/* ADMIN DISPATCH FORM */}
-            {user?.role === 'ADMIN' && (
+            {/* MANAGER DISPATCH FORM */}
+            {isManager && (
                 <div className="bg-white border border-jcb-border shadow-sm rounded-xl overflow-hidden mb-10 transition-all">
                     <div className="bg-gray-50 px-6 py-4 border-b border-jcb-border flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -200,51 +245,63 @@ const MaintenanceManager = () => {
                     </div>
                     
                     <form onSubmit={handleSchedule} className="p-6">
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-5 items-end">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-5 items-start">
                             <div className="md:col-span-2">
                                 <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">Select Machine</label>
-                                <select value={machineId} onChange={(e) => setMachineId(e.target.value)} required
-                                    className="w-full px-4 py-2.5 bg-white border border-jcb-border rounded-lg text-sm text-jcb-textMain font-medium focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 focus:border-jcb-brand transition-all appearance-none cursor-pointer">
+                                <select 
+                                    value={machineId} 
+                                    onChange={handleInputChange(setMachineId, 'machineId')} 
+                                    className={`w-full px-4 py-2.5 bg-white border ${fieldErrors.machineId ? 'border-red-500 focus:ring-red-500' : 'border-jcb-border focus:ring-jcb-brand/50'} rounded-lg text-sm text-jcb-textMain font-medium focus:outline-none focus:ring-2 transition-all appearance-none cursor-pointer`}
+                                >
                                     <option value="">-- Choose Machine --</option>
                                     {machines.map(m => (
                                         <option key={m.id} value={m.id}>{m.name} ({m.modelYear}) - {m.status}</option>
                                     ))}
                                 </select>
+                                {fieldErrors.machineId && <p className="mt-1 text-xs font-bold text-red-500">{fieldErrors.machineId}</p>}
                             </div>
 
                             <div className="md:col-span-1">
-                                <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">Assign Operator</label>
-                                <select value={operatorUsername} onChange={(e) => setOperatorUsername(e.target.value)} required
-                                    className="w-full px-4 py-2.5 bg-white border border-jcb-border rounded-lg text-sm text-jcb-textMain font-medium focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 focus:border-jcb-brand transition-all appearance-none cursor-pointer">
-                                    <option value="">-- Choose Operator --</option>
+                                <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">Assign Technician</label>
+                                <select 
+                                    value={operatorUsername} 
+                                    onChange={handleInputChange(setOperatorUsername, 'operatorUsername')} 
+                                    className={`w-full px-4 py-2.5 bg-white border ${fieldErrors.operatorUsername ? 'border-red-500 focus:ring-red-500' : 'border-jcb-border focus:ring-jcb-brand/50'} rounded-lg text-sm text-jcb-textMain font-medium focus:outline-none focus:ring-2 transition-all appearance-none cursor-pointer`}
+                                >
+                                    <option value="">-- Choose Technician --</option>
                                     {operators.map(op => (
                                         <option key={op.id} value={op.username}>{op.username}</option>
                                     ))}
                                 </select>
+                                {fieldErrors.operatorUsername && <p className="mt-1 text-xs font-bold text-red-500">{fieldErrors.operatorUsername}</p>}
                             </div>
 
                             <div className="md:col-span-1">
                                 <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">Service Date</label>
-                                <input type="date" value={serviceDate} min={new Date().toISOString().split('T')[0]} onChange={(e) => setServiceDate(e.target.value)} required
-                                    className="w-full px-4 py-2.5 bg-white border border-jcb-border rounded-lg text-sm text-jcb-textMain focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 focus:border-jcb-brand transition-all cursor-pointer" />
+                                <input 
+                                    type="date" 
+                                    value={serviceDate} 
+                                    min={new Date().toISOString().split('T')[0]} 
+                                    onChange={handleInputChange(setServiceDate, 'serviceDate')} 
+                                    className={`w-full px-4 py-2.5 bg-white border ${fieldErrors.serviceDate ? 'border-red-500 focus:ring-red-500' : 'border-jcb-border focus:ring-jcb-brand/50'} rounded-lg text-sm text-jcb-textMain focus:outline-none focus:ring-2 transition-all cursor-pointer`} 
+                                />
+                                {fieldErrors.serviceDate && <p className="mt-1 text-xs font-bold text-red-500">{fieldErrors.serviceDate}</p>}
                             </div>
 
-                            <div className="md:col-span-2">
+                            <div className="md:col-span-3">
                                 <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">Repair Description</label>
-                                <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} required maxLength="1000"
-                                    className="w-full px-4 py-2.5 bg-white border border-jcb-border rounded-lg text-sm text-jcb-textMain focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 focus:border-jcb-brand transition-all" placeholder="E.g., Replace hydraulic fluid and check boom cylinders." />
+                                <input 
+                                    type="text" 
+                                    value={description} 
+                                    onChange={handleInputChange(setDescription, 'description')} 
+                                    maxLength="1000"
+                                    placeholder="E.g., Replace hydraulic fluid and check boom cylinders."
+                                    className={`w-full px-4 py-2.5 bg-white border ${fieldErrors.description ? 'border-red-500 focus:ring-red-500' : 'border-jcb-border focus:ring-jcb-brand/50'} rounded-lg text-sm text-jcb-textMain focus:outline-none focus:ring-2 transition-all`} 
+                                />
+                                {fieldErrors.description && <p className="mt-1 text-xs font-bold text-red-500">{fieldErrors.description}</p>}
                             </div>
 
-                            <div className="md:col-span-1">
-                                <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">Task Status</label>
-                                <select value={taskStatus} onChange={(e) => setTaskStatus(e.target.value)} required
-                                    className="w-full px-4 py-2.5 bg-white border border-jcb-border rounded-lg text-sm text-jcb-textMain font-medium focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 focus:border-jcb-brand transition-all appearance-none cursor-pointer">
-                                    <option value="SCHEDULED">SCHEDULED</option>
-                                    <option value="COMPLETED">COMPLETED</option>
-                                </select>
-                            </div>
-
-                            <div className="md:col-span-1">
+                            <div className="md:col-span-1 pt-6">
                                 <button type="submit" disabled={isSaving} className="w-full bg-jcb-brand text-black font-bold py-2.5 px-4 rounded-lg hover:bg-yellow-400 transition shadow-sm disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2">
                                     {isSaving ? (
                                         <><svg className="animate-spin h-4 w-4 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Saving...</>
@@ -281,18 +338,18 @@ const MaintenanceManager = () => {
                                         </div>
                                     </td>
                                 </tr>
-                            ) : tasks.length === 0 ? (
+                            ) : filteredTasks.length === 0 ? (
                                 <tr>
                                     <td colSpan="7" className="px-6 py-12 text-center text-jcb-textMuted">
                                         <div className="flex flex-col items-center justify-center">
                                             <div className="bg-gray-50 p-3 rounded-full mb-3">
                                                 <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path></svg>
                                             </div>
-                                            <span className="font-medium">No maintenance logs found.</span>
+                                            <span className="font-medium">{searchTerm ? 'No maintenance logs match your search.' : 'No maintenance logs found.'}</span>
                                         </div>
                                     </td>
                                 </tr>
-                            ) : tasks.map((task) => (
+                            ) : filteredTasks.map((task) => (
                                 <tr key={task.id} className="hover:bg-blue-50/30 transition-colors group">
                                     <td className="px-6 py-4 text-jcb-textMuted font-mono">#{task.id}</td>
                                     <td className="px-6 py-4 font-bold text-jcb-textMain">{task.machineDetails}</td>
@@ -311,15 +368,15 @@ const MaintenanceManager = () => {
                                     <td className="px-6 py-4 text-right">
                                         {processingId === task.id ? (
                                             <span className="text-xs text-gray-400 font-medium animate-pulse">Processing...</span>
-                                        ) : user?.role === 'OPERATOR' ? (
+                                        ) : isOperator ? (
                                             task.status !== 'COMPLETED' && (
                                                 <button onClick={() => handleStatusChange(task.id, 'COMPLETED')}
-                                                    className="flex items-center justify-end w-full gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 rounded-md text-xs font-bold transition">
+                                                    className="flex items-center justify-end w-full gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 rounded-md text-xs font-bold transition shadow-sm">
                                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg> Complete
                                                 </button>
                                             )
                                         ) : (
-                                            /* ADMIN ACTIONS (Hidden until hover) */
+                                            /* MANAGER ACTIONS (Hidden until hover) */
                                             <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <button onClick={() => handleEdit(task)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition" title="Edit Task">
                                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>

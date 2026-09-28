@@ -1,17 +1,23 @@
-import { useState, useEffect, useContext, useCallback } from 'react';
+import { useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { getAllMachines, addMachine, updateMachine, updateMachineStatus, deleteMachine } from '../services/machineService';
+import { Link } from 'react-router-dom';
 
 const MachineManager = () => {
     const { user } = useContext(AuthContext);
     const canManageMachines = user?.role === 'ADMIN' || user?.role === 'OPERATION_MANAGER';
     
+    // Data State
     const [machines, setMachines] = useState([]);
+    const [searchTerm, setSearchTerm] = useState('');
+    
+    // UI State
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [editingId, setEditingId] = useState(null);
+    const [fieldErrors, setFieldErrors] = useState({});
     
     const [formData, setFormData] = useState({ 
         name: '', modelName: '', modelYear: '', serialNumber: '', dailyRate: '', status: 'AVAILABLE', operationalStatus: 'OPERATIONAL' 
@@ -33,14 +39,27 @@ const MachineManager = () => {
         loadMachines();
     }, [loadMachines]);
 
+    // VIVA FLEX 1: Live Search Filtering
+    const filteredMachines = useMemo(() => {
+        return machines.filter(m => 
+            m.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+            m.serialNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            m.modelName.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    }, [machines, searchTerm]);
+
     const handleInputChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
+        if (fieldErrors[e.target.name]) {
+            setFieldErrors({ ...fieldErrors, [e.target.name]: null }); // Clear error on typing
+        }
     };
 
     const resetForm = () => {
         setFormData({ name: '', modelName: '', modelYear: '', serialNumber: '', dailyRate: '', status: 'AVAILABLE', operationalStatus: 'OPERATIONAL' });
         setEditingId(null);
         setError('');
+        setFieldErrors({});
     };
 
     const handleEdit = (machine) => {
@@ -56,7 +75,22 @@ const MachineManager = () => {
         });
         setError('');
         setSuccess('');
+        setFieldErrors({});
         window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    // VIVA FLEX 2: Client-Side Validation
+    const validateForm = () => {
+        const errors = {};
+        const currentYear = new Date().getFullYear();
+        
+        if (formData.name.trim().length < 3) errors.name = "Name is too short.";
+        if (formData.serialNumber.trim().length < 4) errors.serialNumber = "Invalid serial number.";
+        if (formData.modelYear < 1990 || formData.modelYear > currentYear + 1) errors.modelYear = `Year must be between 1990 and ${currentYear + 1}.`;
+        if (formData.dailyRate <= 0) errors.dailyRate = "Rate must be greater than 0.";
+
+        setFieldErrors(errors);
+        return Object.keys(errors).length === 0;
     };
 
     const handleSubmit = async (e) => {
@@ -64,13 +98,9 @@ const MachineManager = () => {
         setError('');
         setSuccess('');
         
-        const machine = { ...formData, dailyRate: Number(formData.dailyRate) };
-        
-        if (!machine.name.trim() || !machine.modelName.trim() || !machine.modelYear.trim() || !machine.serialNumber.trim() || machine.dailyRate < 0) {
-            setError('Please complete all required fields with valid information.');
-            return;
-        }
+        if (!validateForm()) return;
 
+        const machine = { ...formData, dailyRate: Number(formData.dailyRate) };
         setIsSaving(true);
         try {
             if (editingId) {
@@ -117,31 +147,89 @@ const MachineManager = () => {
     };
 
     // Metrics Calculation
-    const totalMachines = machines.length;
-    const availableMachines = machines.filter(m => m.status === 'AVAILABLE').length;
-    const rentedMachines = machines.filter(m => m.status === 'RENTED').length;
+    const totalMachines = filteredMachines.length;
+    const availableMachines = filteredMachines.filter(m => m.status === 'AVAILABLE').length;
+    const rentedMachines = filteredMachines.filter(m => m.status === 'RENTED').length;
+
+    // VIVA FLEX 3: Customer Card View Renderer
+    const renderCustomerCatalog = () => {
+        const availableCatalog = filteredMachines.filter(m => m.status === 'AVAILABLE' && m.operationalStatus === 'OPERATIONAL');
+
+        if (isLoading) return <p className="text-center py-12 text-jcb-textMuted animate-pulse font-medium">Loading catalog...</p>;
+        if (availableCatalog.length === 0) return (
+            <div className="bg-white border border-jcb-border rounded-xl p-12 text-center shadow-sm">
+                <p className="text-jcb-textMuted font-medium">No machines are currently available for your search criteria.</p>
+            </div>
+        );
+
+        return (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {availableCatalog.map(machine => (
+                    <div key={machine.id} className="bg-white border border-jcb-border rounded-xl overflow-hidden shadow-sm hover:shadow-md hover:border-jcb-brand transition-all flex flex-col">
+                        <div className="h-40 bg-gray-50 border-b border-jcb-border flex items-center justify-center relative">
+                            {/* Decorative JCB Icon Placeholder */}
+                            <svg className="w-20 h-20 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                            <span className="absolute top-3 right-3 bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-md border border-green-200">AVAILABLE</span>
+                        </div>
+                        <div className="p-5 flex-1 flex flex-col">
+                            <h3 className="text-xl font-black text-jcb-textMain truncate" title={machine.name}>{machine.name}</h3>
+                            <p className="text-sm text-jcb-textMuted mb-4">{machine.modelYear} • {machine.modelName}</p>
+                            <div className="mt-auto pt-4 border-t border-gray-100 flex items-center justify-between">
+                                <div>
+                                    <p className="text-xs text-jcb-textMuted uppercase font-bold">Daily Rate</p>
+                                    <p className="text-lg font-black text-jcb-brand">Rs. {machine.dailyRate?.toLocaleString()}</p>
+                                </div>
+                                <Link to="/dashboard/bookings" className="bg-jcb-textMain text-white hover:bg-black font-bold py-2 px-4 rounded-md shadow-sm transition text-sm">
+                                    Book Now
+                                </Link>
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        );
+    };
 
     return (
         <div className="max-w-6xl mx-auto pb-12">
             {/* PAGE HEADER & METRICS */}
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 pb-6 border-b border-jcb-border">
                 <div>
-                    <h2 className="text-3xl font-extrabold tracking-tight text-jcb-textMain">Fleet Management</h2>
-                    <p className="text-sm text-jcb-textMuted mt-1.5 font-medium">Track machine inventory, daily rates, and operational status.</p>
+                    <h2 className="text-3xl font-extrabold tracking-tight text-jcb-textMain">
+                        {user?.role === 'CUSTOMER' ? 'Equipment Catalog' : 'Fleet Management'}
+                    </h2>
+                    <p className="text-sm text-jcb-textMuted mt-1.5 font-medium">
+                        {user?.role === 'CUSTOMER' ? 'Browse and book available machinery for your next project.' : 'Track machine inventory, daily rates, and operational status.'}
+                    </p>
                 </div>
-                <div className="mt-4 md:mt-0 flex items-center gap-3">
-                    <div className="bg-white border border-jcb-border rounded-lg px-4 py-2 shadow-sm flex flex-col items-center">
-                        <span className="text-xs font-bold text-jcb-textMuted uppercase">Available</span>
-                        <span className="text-lg font-black text-green-600">{availableMachines}</span>
+                <div className="mt-4 md:mt-0 flex flex-wrap items-center gap-3">
+                    {/* Live Search */}
+                    <div className="relative">
+                        <svg className="w-4 h-4 absolute left-3 top-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        <input 
+                            type="text" 
+                            placeholder="Search machinery..." 
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-9 pr-4 py-2 bg-white border border-jcb-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 w-full sm:w-56 transition-shadow"
+                        />
                     </div>
-                    <div className="bg-white border border-jcb-border rounded-lg px-4 py-2 shadow-sm flex flex-col items-center">
-                        <span className="text-xs font-bold text-jcb-textMuted uppercase">Rented</span>
-                        <span className="text-lg font-black text-blue-600">{rentedMachines}</span>
-                    </div>
-                    <div className="bg-white border border-jcb-border rounded-lg px-4 py-2 shadow-sm flex flex-col items-center">
-                        <span className="text-xs font-bold text-jcb-textMuted uppercase">Total Fleet</span>
-                        <span className="text-lg font-black text-jcb-textMain">{totalMachines}</span>
-                    </div>
+                    {canManageMachines && (
+                        <>
+                            <div className="bg-white border border-jcb-border rounded-lg px-4 py-2 shadow-sm flex flex-col items-center">
+                                <span className="text-xs font-bold text-jcb-textMuted uppercase">Available</span>
+                                <span className="text-lg font-black text-green-600">{availableMachines}</span>
+                            </div>
+                            <div className="bg-white border border-jcb-border rounded-lg px-4 py-2 shadow-sm flex flex-col items-center">
+                                <span className="text-xs font-bold text-jcb-textMuted uppercase">Rented</span>
+                                <span className="text-lg font-black text-blue-600">{rentedMachines}</span>
+                            </div>
+                            <div className="bg-white border border-jcb-border rounded-lg px-4 py-2 shadow-sm flex flex-col items-center">
+                                <span className="text-xs font-bold text-jcb-textMuted uppercase">Total</span>
+                                <span className="text-lg font-black text-jcb-textMain">{totalMachines}</span>
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
 
@@ -159,7 +247,10 @@ const MachineManager = () => {
                 </div>
             )}
 
-            {/* CREATE / EDIT MACHINE FORM */}
+            {/* CUSTOMER E-COMMERCE VIEW */}
+            {user?.role === 'CUSTOMER' && renderCustomerCatalog()}
+
+            {/* CREATE / EDIT MACHINE FORM (ADMIN/OPS ONLY) */}
             {canManageMachines && (
                 <div className="bg-white border border-jcb-border shadow-sm rounded-xl overflow-hidden mb-10 transition-all">
                     <div className="bg-gray-50 px-6 py-4 border-b border-jcb-border flex items-center justify-between">
@@ -177,45 +268,49 @@ const MachineManager = () => {
                     </div>
                     
                     <form onSubmit={handleSubmit} className="p-6">
-                        <div className="grid grid-cols-1 md:grid-cols-6 gap-5 items-end">
+                        <div className="grid grid-cols-1 md:grid-cols-6 gap-5 items-start">
                             <div className="md:col-span-2">
                                 <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">Machine Name</label>
-                                <input type="text" name="name" value={formData.name} onChange={handleInputChange} required maxLength="100" placeholder="e.g. JCB 3CX Backhoe"
-                                    className="w-full px-4 py-2.5 bg-white border border-jcb-border rounded-lg text-sm text-jcb-textMain focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 focus:border-jcb-brand transition-all" />
+                                <input type="text" name="name" value={formData.name} onChange={handleInputChange} maxLength="100" placeholder="e.g. JCB 3CX Backhoe"
+                                    className={`w-full px-4 py-2.5 bg-white border ${fieldErrors.name ? 'border-red-500' : 'border-jcb-border'} rounded-lg text-sm text-jcb-textMain focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 transition-all`} />
+                                {fieldErrors.name && <p className="mt-1 text-xs font-bold text-red-500">{fieldErrors.name}</p>}
                             </div>
                             <div className="md:col-span-1">
                                 <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">Model</label>
                                 <input type="text" name="modelName" value={formData.modelName} onChange={handleInputChange} required maxLength="100" placeholder="e.g. 3CX"
-                                    className="w-full px-4 py-2.5 bg-white border border-jcb-border rounded-lg text-sm text-jcb-textMain focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 focus:border-jcb-brand transition-all" />
+                                    className="w-full px-4 py-2.5 bg-white border border-jcb-border rounded-lg text-sm text-jcb-textMain focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 transition-all" />
                             </div>
                             <div className="md:col-span-1">
                                 <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">Year</label>
-                                <input type="text" name="modelYear" value={formData.modelYear} onChange={handleInputChange} required pattern="[0-9]{4}" maxLength="4" placeholder="e.g. 2022"
-                                    className="w-full px-4 py-2.5 bg-white border border-jcb-border rounded-lg text-sm text-jcb-textMain focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 focus:border-jcb-brand transition-all" />
+                                <input type="number" name="modelYear" value={formData.modelYear} onChange={handleInputChange} placeholder="e.g. 2022"
+                                    className={`w-full px-4 py-2.5 bg-white border ${fieldErrors.modelYear ? 'border-red-500' : 'border-jcb-border'} rounded-lg text-sm text-jcb-textMain focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 transition-all`} />
+                                {fieldErrors.modelYear && <p className="mt-1 text-xs font-bold text-red-500">{fieldErrors.modelYear}</p>}
                             </div>
                             <div className="md:col-span-2">
                                 <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">Serial Number</label>
-                                <input type="text" name="serialNumber" value={formData.serialNumber} onChange={handleInputChange} required maxLength="100" placeholder="e.g. SN-100293"
-                                    className="w-full px-4 py-2.5 bg-white border border-jcb-border rounded-lg text-sm text-jcb-textMain focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 focus:border-jcb-brand transition-all" />
+                                <input type="text" name="serialNumber" value={formData.serialNumber} onChange={handleInputChange} maxLength="100" placeholder="e.g. SN-100293"
+                                    className={`w-full px-4 py-2.5 bg-white border ${fieldErrors.serialNumber ? 'border-red-500' : 'border-jcb-border'} rounded-lg text-sm text-jcb-textMain focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 transition-all`} />
+                                {fieldErrors.serialNumber && <p className="mt-1 text-xs font-bold text-red-500">{fieldErrors.serialNumber}</p>}
                             </div>
                             
                             <div className="md:col-span-2">
                                 <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">Daily Rate (LKR)</label>
                                 <div className="relative">
                                     <span className="absolute left-3 top-2.5 text-gray-500 font-medium">Rs.</span>
-                                    <input type="number" name="dailyRate" value={formData.dailyRate} onChange={handleInputChange} required min="0" step="0.01" placeholder="15000"
-                                        className="w-full pl-9 pr-4 py-2.5 bg-white border border-jcb-border rounded-lg text-sm text-jcb-textMain focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 focus:border-jcb-brand transition-all" />
+                                    <input type="number" name="dailyRate" value={formData.dailyRate} onChange={handleInputChange} step="0.01" placeholder="15000"
+                                        className={`w-full pl-9 pr-4 py-2.5 bg-white border ${fieldErrors.dailyRate ? 'border-red-500' : 'border-jcb-border'} rounded-lg text-sm text-jcb-textMain focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 transition-all`} />
                                 </div>
+                                {fieldErrors.dailyRate && <p className="mt-1 text-xs font-bold text-red-500">{fieldErrors.dailyRate}</p>}
                             </div>
                             <div className="md:col-span-2">
                                 <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">Op Status</label>
                                 <select name="operationalStatus" value={formData.operationalStatus} onChange={handleInputChange} required
-                                    className="w-full px-4 py-2.5 bg-white border border-jcb-border rounded-lg text-sm text-jcb-textMain font-medium focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 focus:border-jcb-brand transition-all appearance-none cursor-pointer">
+                                    className="w-full px-4 py-2.5 bg-white border border-jcb-border rounded-lg text-sm text-jcb-textMain font-medium focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 transition-all appearance-none cursor-pointer">
                                     <option value="OPERATIONAL">OPERATIONAL</option>
                                     <option value="NON_OPERATIONAL">NON_OPERATIONAL</option>
                                 </select>
                             </div>
-                            <div className="md:col-span-2">
+                            <div className="md:col-span-2 pt-6">
                                 <button type="submit" disabled={isSaving} className="w-full bg-jcb-brand text-black font-bold py-2.5 px-4 rounded-lg hover:bg-yellow-400 transition shadow-sm disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2">
                                     {isSaving ? (
                                         <><svg className="animate-spin h-4 w-4 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Saving...</>
@@ -227,55 +322,55 @@ const MachineManager = () => {
                 </div>
             )}
 
-            {/* FLEET DATA TABLE */}
-            <div className="bg-white border border-jcb-border shadow-sm rounded-xl overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm whitespace-nowrap">
-                        <thead className="bg-gray-50 border-b border-jcb-border">
-                            <tr>
-                                <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Machine Details</th>
-                                <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Serial No.</th>
-                                <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Daily Rate</th>
-                                <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Booking Status</th>
-                                <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Health</th>
-                                {canManageMachines && <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider text-right">Actions</th>}
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {isLoading ? (
+            {/* FLEET DATA TABLE (ADMIN/OPS ONLY) */}
+            {canManageMachines && (
+                <div className="bg-white border border-jcb-border shadow-sm rounded-xl overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm whitespace-nowrap">
+                            <thead className="bg-gray-50 border-b border-jcb-border">
                                 <tr>
-                                    <td colSpan={canManageMachines ? 6 : 5} className="px-6 py-12 text-center text-jcb-textMuted">
-                                        <div className="flex flex-col items-center justify-center">
-                                            <svg className="animate-spin h-8 w-8 text-gray-300 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                            <span className="font-medium">Loading fleet inventory...</span>
-                                        </div>
-                                    </td>
+                                    <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Machine Details</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Serial No.</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Daily Rate</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Booking Status</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Health</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider text-right">Actions</th>
                                 </tr>
-                            ) : machines.length === 0 ? (
-                                <tr>
-                                    <td colSpan={canManageMachines ? 6 : 5} className="px-6 py-12 text-center text-jcb-textMuted">
-                                        <div className="flex flex-col items-center justify-center">
-                                            <div className="bg-gray-50 p-3 rounded-full mb-3">
-                                                <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {isLoading ? (
+                                    <tr>
+                                        <td colSpan="6" className="px-6 py-12 text-center text-jcb-textMuted">
+                                            <div className="flex flex-col items-center justify-center">
+                                                <svg className="animate-spin h-8 w-8 text-gray-300 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                                <span className="font-medium">Loading fleet inventory...</span>
                                             </div>
-                                            <span className="font-medium">No machines found in fleet.</span>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ) : machines.map((machine) => (
-                                <tr key={machine.id} className="hover:bg-blue-50/30 transition-colors group">
-                                    <td className="px-6 py-4">
-                                        <div className="flex flex-col">
-                                            <span className="font-bold text-jcb-textMain">{machine.name}</span>
-                                            <span className="text-xs text-jcb-textMuted">{machine.modelYear} • {machine.modelName}</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 text-sm text-jcb-textMuted font-mono">{machine.serialNumber}</td>
-                                    <td className="px-6 py-4 font-bold text-jcb-textMain">Rs. {machine.dailyRate?.toLocaleString()}</td>
-                                    
-                                    {/* INTERACTIVE STATUS PILL */}
-                                    <td className="px-6 py-4">
-                                        {canManageMachines ? (
+                                        </td>
+                                    </tr>
+                                ) : filteredMachines.length === 0 ? (
+                                    <tr>
+                                        <td colSpan="6" className="px-6 py-12 text-center text-jcb-textMuted">
+                                            <div className="flex flex-col items-center justify-center">
+                                                <div className="bg-gray-50 p-3 rounded-full mb-3">
+                                                    <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                                                </div>
+                                                <span className="font-medium">{searchTerm ? 'No machines match your search.' : 'No machines found in fleet.'}</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ) : filteredMachines.map((machine) => (
+                                    <tr key={machine.id} className="hover:bg-blue-50/30 transition-colors group">
+                                        <td className="px-6 py-4">
+                                            <div className="flex flex-col">
+                                                <span className="font-bold text-jcb-textMain">{machine.name}</span>
+                                                <span className="text-xs text-jcb-textMuted">{machine.modelYear} • {machine.modelName}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-sm text-jcb-textMuted font-mono">{machine.serialNumber}</td>
+                                        <td className="px-6 py-4 font-bold text-jcb-textMain">Rs. {machine.dailyRate?.toLocaleString()}</td>
+                                        
+                                        {/* INTERACTIVE STATUS PILL */}
+                                        <td className="px-6 py-4">
                                             <select 
                                                 value={machine.status} 
                                                 onChange={(e) => handleStatusChange(machine.id, e.target.value)} 
@@ -289,29 +384,19 @@ const MachineManager = () => {
                                                 <option value="RENTED">RENTED</option>
                                                 <option value="MAINTENANCE">MAINTENANCE</option>
                                             </select>
-                                        ) : (
-                                            <span className={`px-3 py-1 rounded-full text-xs font-bold border ${
-                                                machine.status === 'AVAILABLE' ? 'bg-green-50 text-green-700 border-green-200' :
-                                                machine.status === 'RENTED' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                                                'bg-orange-50 text-orange-700 border-orange-200'
+                                        </td>
+
+                                        {/* OPERATIONAL HEALTH PILL */}
+                                        <td className="px-6 py-4">
+                                            <span className={`px-3 py-1 rounded-full text-xs font-bold border flex w-max items-center gap-1.5 ${
+                                                machine.operationalStatus === 'OPERATIONAL' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
                                             }`}>
-                                                {machine.status}
+                                                <div className={`w-1.5 h-1.5 rounded-full ${machine.operationalStatus === 'OPERATIONAL' ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`}></div>
+                                                {machine.operationalStatus.replace('_', ' ')}
                                             </span>
-                                        )}
-                                    </td>
+                                        </td>
 
-                                    {/* OPERATIONAL HEALTH PILL */}
-                                    <td className="px-6 py-4">
-                                        <span className={`px-3 py-1 rounded-full text-xs font-bold border flex w-max items-center gap-1.5 ${
-                                            machine.operationalStatus === 'OPERATIONAL' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
-                                        }`}>
-                                            <div className={`w-1.5 h-1.5 rounded-full ${machine.operationalStatus === 'OPERATIONAL' ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`}></div>
-                                            {machine.operationalStatus.replace('_', ' ')}
-                                        </span>
-                                    </td>
-
-                                    {/* ACTIONS */}
-                                    {canManageMachines && (
+                                        {/* ACTIONS */}
                                         <td className="px-6 py-4 text-right">
                                             <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <button onClick={() => handleEdit(machine)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition" title="Edit Machine">
@@ -324,13 +409,13 @@ const MachineManager = () => {
                                                 )}
                                             </div>
                                         </td>
-                                    )}
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-            </div>
+            )}
         </div>
     );
 };
