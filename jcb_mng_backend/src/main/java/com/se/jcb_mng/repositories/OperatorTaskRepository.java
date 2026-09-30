@@ -10,4 +10,5 @@ public interface OperatorTaskRepository extends JpaRepository<OperatorTask, Long
     // Custom query to find tasks assigned to a specific operator
     List<OperatorTask> findByOperatorUsername(String username);
     List<OperatorTask> findByMachine_IdAndIdNot(Long machineId, Long taskId);
+    boolean existsByMachine_Id(Long machineId);
 }

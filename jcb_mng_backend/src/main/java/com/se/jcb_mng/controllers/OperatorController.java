@@ -35,7 +35,7 @@ public class OperatorController {
     public record UpdateRequest(Long machineId, String operatorUsername, String description, String serviceDate, String status) {}
 
     @PostMapping("/schedule")
-    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATION_MANAGER', 'MAINTENANCE_MANAGER', 'OPERATOR')")
     public ResponseEntity<?> scheduleTask(Authentication auth, @RequestBody ScheduleRequest request) {
         try {
             if (request == null || request.serviceDate() == null) {
@@ -55,7 +55,7 @@ public class OperatorController {
     }
 
     @GetMapping("/all")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATION_MANAGER', 'MAINTENANCE_MANAGER')")
     public ResponseEntity<List<TaskResponse>> getAllTasks() {
         return ResponseEntity.ok(operatorService.getAllTasks().stream()
                 .map(this::toResponse)
@@ -82,7 +82,7 @@ public class OperatorController {
     }
 
     @PutMapping("/{taskId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATION_MANAGER', 'MAINTENANCE_MANAGER', 'OPERATOR')")
     public ResponseEntity<?> updateTask(Authentication auth, @PathVariable Long taskId, @RequestBody UpdateRequest request) {
         try {
             if (request == null || request.serviceDate() == null) {
@@ -104,7 +104,7 @@ public class OperatorController {
     }
 
     @DeleteMapping("/{taskId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATION_MANAGER', 'MAINTENANCE_MANAGER', 'OPERATOR')")
     public ResponseEntity<?> deleteTask(Authentication auth, @PathVariable Long taskId) {
         try {
             if (auth.getAuthorities().stream()
