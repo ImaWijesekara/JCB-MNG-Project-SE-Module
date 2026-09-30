@@ -1,7 +1,21 @@
 import { useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { makePayment, getMyPayments, getAllPayments, updatePaymentStatus, deletePayment } from '../services/paymentService';
-import { getMyBookings } from '../services/bookingService';
+import { getMyInvoices } from '../services/invoiceService';
+
+const fetchPaymentData = async (role, isFinance) => {
+    if (isFinance) {
+        return { payments: await getAllPayments().catch(() => []), invoices: [] };
+    }
+    if (role === 'CUSTOMER') {
+        const [payments, invoices] = await Promise.all([
+            getMyPayments().catch(() => []),
+            getMyInvoices().catch(() => [])
+        ]);
+        return { payments, invoices };
+    }
+    return { payments: [], invoices: [] };
+};
 
 const PaymentManager = () => {
     const { user } = useContext(AuthContext);
@@ -9,7 +23,8 @@ const PaymentManager = () => {
 
     // Data State
     const [payments, setPayments] = useState([]);
-    const [approvedBookings, setApprovedBookings] = useState([]);
+    const [customerInvoices, setCustomerInvoices] = useState([]);
+    const [payableInvoices, setPayableInvoices] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     
     // UI State
@@ -25,23 +40,15 @@ const PaymentManager = () => {
     const [paymentMethod, setPaymentMethod] = useState('CARD');
 
     const loadData = useCallback(async () => {
-        setLoading(true);
-        setError('');
         try {
-            if (isFinance) {
-                setPayments(await getAllPayments().catch(() => []));
-            } else if (user?.role === 'CUSTOMER') {
-                const [myPayments, myBookings] = await Promise.all([
-                    getMyPayments().catch(() => []),
-                    getMyBookings().catch(() => [])
-                ]);
-                setPayments(myPayments);
-                
-                const paidBookingIds = new Set(myPayments.map((payment) => payment.bookingId));
-                setApprovedBookings(myBookings.filter((booking) =>
-                    booking.status === 'APPROVED' && !paidBookingIds.has(booking.id)));
-            }
-        } catch (err) {
+            const { payments: paymentData, invoices: invoiceData } = await fetchPaymentData(user?.role, isFinance);
+            setPayments(paymentData);
+            setCustomerInvoices(invoiceData);
+            setPayableInvoices(invoiceData.filter((invoice) =>
+                invoice.status === 'UNPAID' && !paymentData.some((payment) =>
+                    payment.bookingId === invoice.bookingId
+                    && ['PENDING', 'COMPLETED'].includes(payment.status))));
+        } catch {
             setError('Failed to sync financial ledger.');
         } finally {
             setLoading(false);
@@ -49,8 +56,26 @@ const PaymentManager = () => {
     }, [user, isFinance]);
 
     useEffect(() => {
-        loadData();
-    }, [loadData]);
+        let isCurrent = true;
+        const loadInitialData = async () => {
+            try {
+                const { payments: paymentData, invoices: invoiceData } = await fetchPaymentData(user?.role, isFinance);
+                if (!isCurrent) return;
+                setPayments(paymentData);
+                setCustomerInvoices(invoiceData);
+                setPayableInvoices(invoiceData.filter((invoice) =>
+                    invoice.status === 'UNPAID' && !paymentData.some((payment) =>
+                        payment.bookingId === invoice.bookingId
+                        && ['PENDING', 'COMPLETED'].includes(payment.status))));
+            } catch {
+                if (isCurrent) setError('Failed to sync financial ledger.');
+            } finally {
+                if (isCurrent) setLoading(false);
+            }
+        };
+        loadInitialData();
+        return () => { isCurrent = false; };
+    }, [user, isFinance]);
 
     // VIVA FLEX 1: Live Ledger Search
     const filteredPayments = useMemo(() => {
@@ -80,7 +105,7 @@ const PaymentManager = () => {
         try {
             await makePayment(bookingId, paymentMethod);
             setBookingId('');
-            setSuccess("Payment securely submitted for processing! A receipt will be generated shortly.");
+            setSuccess('Payment submitted for finance review.');
             await loadData();
             setTimeout(() => setSuccess(''), 5000);
         } catch (err) {
@@ -120,7 +145,6 @@ const PaymentManager = () => {
     };
 
     // Metrics Calculation
-    const totalTransactions = filteredPayments.length;
     const pendingTransactions = filteredPayments.filter(p => p.status === 'PENDING').length;
     const totalRevenue = filteredPayments.filter(p => p.status === 'COMPLETED').reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
@@ -200,7 +224,7 @@ const PaymentManager = () => {
                     <form onSubmit={handlePayment} className="p-6">
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-5 items-start">
                             <div className="md:col-span-2">
-                                <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">Select Approved Rental</label>
+                                <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">Select Unpaid Invoice</label>
                                 <select 
                                     value={bookingId} 
                                     onChange={(e) => {
@@ -209,14 +233,16 @@ const PaymentManager = () => {
                                     }} 
                                     className={`w-full px-4 py-2.5 bg-white border ${fieldErrors.bookingId ? 'border-red-500 focus:ring-red-500' : 'border-jcb-border focus:ring-jcb-brand/50'} rounded-lg text-sm text-jcb-textMain font-medium focus:outline-none focus:ring-2 transition-all appearance-none cursor-pointer`}
                                 >
-                                    <option value="">-- Choose Pending Invoice --</option>
-                                    {approvedBookings.map(b => (
-                                        <option key={b.id} value={b.id}>Ticket #{b.id} - {b.machineDetails} (Total: Rs. {b.totalCost?.toLocaleString()})</option>
+                                    <option value="">-- Choose Invoice --</option>
+                                    {payableInvoices.map((invoice) => (
+                                        <option key={invoice.id} value={invoice.bookingId}>
+                                            {invoice.invoiceNumber} - Booking #{invoice.bookingId} (Rs. {invoice.amount?.toLocaleString()})
+                                        </option>
                                     ))}
                                 </select>
                                 {fieldErrors.bookingId && <p className="mt-1 text-xs font-bold text-red-500">{fieldErrors.bookingId}</p>}
-                                {approvedBookings.length === 0 && !loading && (
-                                    <p className="mt-1.5 text-xs font-medium text-green-600">You have no pending invoices to pay.</p>
+                                {payableInvoices.length === 0 && !loading && (
+                                    <p className="mt-1.5 text-xs font-medium text-green-600">You have no unpaid invoices ready for payment.</p>
                                 )}
                             </div>
 
@@ -234,7 +260,7 @@ const PaymentManager = () => {
                             </div>
 
                             <div className="md:col-span-1 pt-6">
-                                <button type="submit" disabled={isSubmitting || approvedBookings.length === 0} className="w-full bg-jcb-brand text-black font-bold py-2.5 px-4 rounded-lg hover:bg-yellow-400 transition shadow-sm disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                                <button type="submit" disabled={isSubmitting || payableInvoices.length === 0} className="w-full bg-jcb-brand text-black font-bold py-2.5 px-4 rounded-lg hover:bg-yellow-400 transition shadow-sm disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2">
                                     {isSubmitting ? (
                                         <><svg className="animate-spin h-4 w-4 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Processing...</>
                                     ) : 'Submit Payment'}
@@ -242,6 +268,44 @@ const PaymentManager = () => {
                             </div>
                         </div>
                     </form>
+                </div>
+            )}
+
+            {user?.role === 'CUSTOMER' && (
+                <div className="bg-white border border-jcb-border shadow-sm rounded-xl overflow-hidden mb-10">
+                    <div className="px-6 py-4 border-b border-jcb-border">
+                        <h3 className="text-base font-bold text-jcb-textMain">My Invoices</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm whitespace-nowrap">
+                            <thead className="bg-gray-50 border-b border-jcb-border">
+                                <tr>
+                                    <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase">Invoice</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase">Booking</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase">Issued</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase">Amount</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {customerInvoices.length === 0 ? (
+                                    <tr><td colSpan="5" className="px-6 py-8 text-center text-jcb-textMuted">No invoices have been issued yet.</td></tr>
+                                ) : customerInvoices.map((invoice) => (
+                                    <tr key={invoice.id}>
+                                        <td className="px-6 py-4 font-bold text-jcb-textMain">{invoice.invoiceNumber}</td>
+                                        <td className="px-6 py-4 text-jcb-textMuted">#{invoice.bookingId}</td>
+                                        <td className="px-6 py-4 text-jcb-textMuted">{invoice.issueDate}</td>
+                                        <td className="px-6 py-4 font-bold text-jcb-textMain">Rs. {invoice.amount?.toLocaleString()}</td>
+                                        <td className="px-6 py-4">
+                                            <span className={`px-3 py-1 rounded-full text-xs font-bold border ${invoice.status === 'PAID' ? 'bg-green-50 text-green-700 border-green-200' : invoice.status === 'VOID' ? 'bg-gray-100 text-gray-600 border-gray-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'}`}>
+                                                {invoice.status}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             )}
 
