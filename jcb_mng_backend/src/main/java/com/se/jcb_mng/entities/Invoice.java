@@ -1,7 +1,12 @@
 package com.se.jcb_mng.entities;
 
-import jakarta.persistence.*;
 import java.time.LocalDate;
+
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "invoices")
@@ -14,9 +19,10 @@ public class Invoice {
     private String invoiceNumber; // e.g., INV-2026-001
     private Long bookingId;
     private String customerName;
+    private String customerUsername;
     private Double amount;
     private LocalDate issueDate;
-    private String status; // PAID, UNPAID, DRAFT
+    private String status; // UNPAID, PAID, VOID
 
     // Constructors
     public Invoice() {}
@@ -33,6 +39,9 @@ public class Invoice {
 
     public String getCustomerName() { return customerName; }
     public void setCustomerName(String customerName) { this.customerName = customerName; }
+
+    public String getCustomerUsername() { return customerUsername; }
+    public void setCustomerUsername(String customerUsername) { this.customerUsername = customerUsername; }
 
     public Double getAmount() { return amount; }
     public void setAmount(Double amount) { this.amount = amount; }
