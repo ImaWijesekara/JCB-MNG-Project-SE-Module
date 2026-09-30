@@ -11,6 +11,9 @@ export const createUser = async (userData) => {
     const payload = {
         username: userData.username,
         email: userData.email,
+        fullName: userData.fullName || null,
+        phoneNumber: userData.phoneNumber || null,
+        address: userData.address || null,
         passwordHash: userData.password,
         role: userData.role
     };

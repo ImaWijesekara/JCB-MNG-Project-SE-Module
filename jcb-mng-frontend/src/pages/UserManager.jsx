@@ -13,8 +13,11 @@ const UserManager = () => {
     const [editingUserId, setEditingUserId] = useState(null);
     const [fieldErrors, setFieldErrors] = useState({});
     
-    // Form State
-    const [formData, setFormData] = useState({ username: '', email: '', password: '', role: 'CUSTOMER' });
+    // Form State (Now matching the complete Entity)
+    const [formData, setFormData] = useState({ 
+        username: '', email: '', password: '', role: 'CUSTOMER',
+        fullName: '', phoneNumber: '', address: '' 
+    });
 
     const loadUsers = async () => {
         setIsLoading(true);
@@ -31,46 +34,71 @@ const UserManager = () => {
         loadUsers();
     }, []);
 
-    // 1. VIVA FLEX: Real-time Search Filtering
+    // VIVA FLEX 1: Upgraded Real-time Search Filtering
     const filteredUsers = useMemo(() => {
-        return usersList.filter(u => 
-            u.username.toLowerCase().includes(searchTerm.toLowerCase()) || 
-            u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            u.role.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+        return usersList.filter(u => {
+            const search = searchTerm.toLowerCase();
+            return (
+                (u.username || '').toLowerCase().includes(search) || 
+                (u.email || '').toLowerCase().includes(search) ||
+                (u.role || '').toLowerCase().includes(search) ||
+                (u.fullName || '').toLowerCase().includes(search) ||
+                (u.phoneNumber || '').includes(search)
+            );
+        });
     }, [usersList, searchTerm]);
 
     const resetForm = () => {
         setEditingUserId(null);
-        setFormData({ username: '', email: '', password: '', role: 'CUSTOMER' });
+        setFormData({ 
+            username: '', email: '', password: '', role: 'CUSTOMER',
+            fullName: '', phoneNumber: '', address: '' 
+        });
         setError('');
         setFieldErrors({});
     };
 
     const handleEdit = (selectedUser) => {
         setEditingUserId(selectedUser.id);
-        setFormData({ username: selectedUser.username, email: selectedUser.email, password: '', role: selectedUser.role });
+        setFormData({ 
+            username: selectedUser.username || '', 
+            email: selectedUser.email || '', 
+            password: '', 
+            role: selectedUser.role || 'CUSTOMER',
+            fullName: selectedUser.fullName || '',
+            phoneNumber: selectedUser.phoneNumber || '',
+            address: selectedUser.address || ''
+        });
         window.scrollTo({ top: 0, behavior: 'smooth' });
         setError('');
         setSuccess('');
         setFieldErrors({});
     };
 
-    // 2. VIVA FLEX: Client-Side Validation
+    // VIVA FLEX 2: Strict Client-Side Validation
     const validateForm = () => {
         const errors = {};
-        if (formData.username.trim().length < 3) {
-            errors.username = "Username must be at least 3 characters.";
-        }
+        if (formData.fullName.trim().length < 3) errors.fullName = "Full name is required.";
+        if (formData.phoneNumber.trim().length < 9) errors.phoneNumber = "Valid phone required.";
+        if (formData.username.trim().length < 3) errors.username = "At least 3 characters.";
+        
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(formData.email)) {
-            errors.email = "Please enter a valid email address.";
-        }
+        if (!emailRegex.test(formData.email)) errors.email = "Invalid email format.";
+        
+        // Password is only required when creating a NEW user. When editing, leaving it blank means "don't change it".
         if (!editingUserId && formData.password.length < 6) {
-            errors.password = "Password must be at least 6 characters.";
+            errors.password = "Minimum 6 characters.";
         }
+        
         setFieldErrors(errors);
         return Object.keys(errors).length === 0;
+    };
+
+    const handleInputChange = (e) => {
+        setFormData({ ...formData, [e.target.name]: e.target.value });
+        if (fieldErrors[e.target.name]) {
+            setFieldErrors({ ...fieldErrors, [e.target.name]: null });
+        }
     };
 
     const handleCreate = async (e) => {
@@ -123,16 +151,16 @@ const UserManager = () => {
                     <h2 className="text-3xl font-extrabold tracking-tight text-jcb-textMain">User Directory</h2>
                     <p className="text-sm text-jcb-textMuted mt-1.5 font-medium">Manage system access, operator assignments, and customer accounts.</p>
                 </div>
-                <div className="mt-4 md:mt-0 flex items-center gap-4">
+                <div className="mt-4 md:mt-0 flex flex-wrap items-center gap-4">
                     {/* Search Bar */}
                     <div className="relative">
                         <svg className="w-4 h-4 absolute left-3 top-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                         <input 
                             type="text" 
-                            placeholder="Search users..." 
+                            placeholder="Search by name, role, phone..." 
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-9 pr-4 py-2 bg-white border border-jcb-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 w-64 transition-shadow"
+                            className="pl-9 pr-4 py-2 bg-white border border-jcb-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 w-full sm:w-64 transition-shadow"
                         />
                     </div>
                     {/* KPI Badge */}
@@ -174,38 +202,65 @@ const UserManager = () => {
                 </div>
                 
                 <form onSubmit={handleCreate} className="p-6">
-                    <div className="grid grid-cols-1 md:grid-cols-5 gap-5 items-start">
-                        <div className="md:col-span-1">
-                            <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">Username</label>
-                            <input type="text" value={formData.username} onChange={(e) => setFormData({...formData, username: e.target.value})} disabled={Boolean(editingUserId)}
-                                className={`w-full px-4 py-2.5 bg-white border ${fieldErrors.username ? 'border-red-500 focus:ring-red-500' : 'border-jcb-border focus:ring-jcb-brand/50'} rounded-lg text-sm text-jcb-textMain focus:outline-none focus:ring-2 transition-all disabled:bg-gray-50 disabled:text-gray-400`} />
-                            {fieldErrors.username && <p className="mt-1.5 text-xs font-bold text-red-500">{fieldErrors.username}</p>}
+                    {/* Top Row: Personal Details */}
+                    <div className="grid grid-cols-1 md:grid-cols-6 gap-5 mb-5 items-start">
+                        <div className="md:col-span-2">
+                            <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">Full Name</label>
+                            <input type="text" name="fullName" value={formData.fullName} onChange={handleInputChange} placeholder="John Doe"
+                                className={`w-full px-4 py-2.5 bg-white border ${fieldErrors.fullName ? 'border-red-500 focus:ring-red-500' : 'border-jcb-border focus:ring-jcb-brand/50'} rounded-lg text-sm text-jcb-textMain focus:outline-none focus:ring-2 transition-all`} />
+                            {fieldErrors.fullName && <p className="mt-1.5 text-xs font-bold text-red-500">{fieldErrors.fullName}</p>}
                         </div>
-                        <div className="md:col-span-1">
+                        <div className="md:col-span-2">
+                            <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">Phone Number</label>
+                            <input type="tel" name="phoneNumber" value={formData.phoneNumber} onChange={handleInputChange} placeholder="071 234 5678"
+                                className={`w-full px-4 py-2.5 bg-white border ${fieldErrors.phoneNumber ? 'border-red-500 focus:ring-red-500' : 'border-jcb-border focus:ring-jcb-brand/50'} rounded-lg text-sm text-jcb-textMain focus:outline-none focus:ring-2 transition-all`} />
+                            {fieldErrors.phoneNumber && <p className="mt-1.5 text-xs font-bold text-red-500">{fieldErrors.phoneNumber}</p>}
+                        </div>
+                        <div className="md:col-span-2">
                             <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">Email Address</label>
-                            <input type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})}
+                            <input type="email" name="email" value={formData.email} onChange={handleInputChange} placeholder="john@company.com"
                                 className={`w-full px-4 py-2.5 bg-white border ${fieldErrors.email ? 'border-red-500 focus:ring-red-500' : 'border-jcb-border focus:ring-jcb-brand/50'} rounded-lg text-sm text-jcb-textMain focus:outline-none focus:ring-2 transition-all`} />
                             {fieldErrors.email && <p className="mt-1.5 text-xs font-bold text-red-500">{fieldErrors.email}</p>}
                         </div>
-                        <div className="md:col-span-1">
+                    </div>
+
+                    {/* Middle Row: System Credentials */}
+                    <div className="grid grid-cols-1 md:grid-cols-6 gap-5 mb-5 items-start">
+                        <div className="md:col-span-2">
+                            <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">System Username</label>
+                            <input type="text" name="username" value={formData.username} onChange={handleInputChange} disabled={Boolean(editingUserId)} placeholder="Unique login ID"
+                                className={`w-full px-4 py-2.5 bg-white border ${fieldErrors.username ? 'border-red-500 focus:ring-red-500' : 'border-jcb-border focus:ring-jcb-brand/50'} rounded-lg text-sm text-jcb-textMain focus:outline-none focus:ring-2 transition-all disabled:bg-gray-50 disabled:text-gray-400`} />
+                            {fieldErrors.username && <p className="mt-1.5 text-xs font-bold text-red-500">{fieldErrors.username}</p>}
+                        </div>
+                        <div className="md:col-span-2">
                             <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">Password</label>
-                            <input type="password" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} placeholder={editingUserId ? "••••••••" : ""}
-                                className={`w-full px-4 py-2.5 bg-white border ${fieldErrors.password ? 'border-red-500 focus:ring-red-500' : 'border-jcb-border focus:ring-jcb-brand/50'} rounded-lg text-sm text-jcb-textMain focus:outline-none focus:ring-2 transition-all placeholder:text-gray-300`} />
+                            <input type="password" name="password" value={formData.password} onChange={handleInputChange} placeholder={editingUserId ? "Leave blank to keep current" : "••••••••"}
+                                className={`w-full px-4 py-2.5 bg-white border ${fieldErrors.password ? 'border-red-500 focus:ring-red-500' : 'border-jcb-border focus:ring-jcb-brand/50'} rounded-lg text-sm text-jcb-textMain focus:outline-none focus:ring-2 transition-all placeholder:text-gray-400`} />
                             {fieldErrors.password && <p className="mt-1.5 text-xs font-bold text-red-500">{fieldErrors.password}</p>}
                         </div>
-                        <div className="md:col-span-1">
+                        <div className="md:col-span-2">
                             <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">System Role</label>
-                            <select value={formData.role} onChange={(e) => setFormData({...formData, role: e.target.value})}
-                                className="w-full px-4 py-2.5 bg-white border border-jcb-border rounded-lg text-sm text-jcb-textMain font-medium focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 transition-all appearance-none cursor-pointer">
+                            <select name="role" value={formData.role} onChange={handleInputChange}
+                                className="w-full px-4 py-2.5 bg-white border border-jcb-border rounded-lg text-sm text-jcb-textMain font-bold focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 transition-all appearance-none cursor-pointer">
                                 <option value="CUSTOMER">Customer</option>
                                 <option value="OPERATOR">Operator</option>
                                 <option value="OPERATION_MANAGER">Operation Manager</option>
+                                <option value="MAINTENANCE_MANAGER">Maintenance Manager</option>
                                 <option value="DISPATCH_MANAGER">Dispatch Manager</option>
                                 <option value="FINANCE_OFFICER">Finance Officer</option>
                                 <option value="ADMIN">System Admin</option>
                             </select>
                         </div>
-                        <div className="md:col-span-1 pt-6">
+                    </div>
+
+                    {/* Bottom Row: Address & Submit */}
+                    <div className="grid grid-cols-1 md:grid-cols-6 gap-5 items-end border-t border-gray-50 pt-5">
+                        <div className="md:col-span-4">
+                            <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">Physical Address</label>
+                            <input type="text" name="address" value={formData.address} onChange={handleInputChange} placeholder="Required for equipment delivery..."
+                                className="w-full px-4 py-2.5 bg-white border border-jcb-border rounded-lg text-sm text-jcb-textMain focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 transition-all" />
+                        </div>
+                        <div className="md:col-span-2">
                             <button type="submit" disabled={isSaving} className="w-full bg-jcb-brand text-black font-bold py-2.5 px-4 rounded-lg hover:bg-yellow-400 transition shadow-sm disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2">
                                 {isSaving ? (
                                     <><svg className="animate-spin h-4 w-4 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Saving...</>
@@ -222,9 +277,8 @@ const UserManager = () => {
                     <table className="w-full text-left text-sm whitespace-nowrap">
                         <thead className="bg-gray-50 border-b border-jcb-border">
                             <tr>
-                                <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">ID</th>
-                                <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Username</th>
-                                <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Email Address</th>
+                                <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">User Details</th>
+                                <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Contact Info</th>
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">System Role</th>
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider text-right">Actions</th>
                             </tr>
@@ -232,7 +286,7 @@ const UserManager = () => {
                         <tbody className="divide-y divide-gray-100">
                             {isLoading ? (
                                 <tr>
-                                    <td colSpan="5" className="px-6 py-12 text-center text-jcb-textMuted">
+                                    <td colSpan="4" className="px-6 py-12 text-center text-jcb-textMuted">
                                         <div className="flex flex-col items-center justify-center">
                                             <svg className="animate-spin h-8 w-8 text-gray-300 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                                             <span className="font-medium">Loading directory...</span>
@@ -241,7 +295,7 @@ const UserManager = () => {
                                 </tr>
                             ) : filteredUsers.length === 0 ? (
                                 <tr>
-                                    <td colSpan="5" className="px-6 py-12 text-center text-jcb-textMuted">
+                                    <td colSpan="4" className="px-6 py-12 text-center text-jcb-textMuted">
                                         <div className="flex flex-col items-center justify-center">
                                             <div className="bg-gray-50 p-3 rounded-full mb-3">
                                                 <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
@@ -252,15 +306,25 @@ const UserManager = () => {
                                 </tr>
                             ) : filteredUsers.map((u) => (
                                 <tr key={u.id} className="hover:bg-blue-50/30 transition-colors group">
-                                    <td className="px-6 py-4 text-jcb-textMuted font-medium">#{u.id}</td>
-                                    <td className="px-6 py-4 text-jcb-textMain font-bold">{u.username}</td>
-                                    <td className="px-6 py-4 text-jcb-textMuted">{u.email}</td>
+                                    <td className="px-6 py-4">
+                                        <div className="flex flex-col">
+                                            <span className="font-bold text-jcb-textMain">{u.fullName || 'N/A'}</span>
+                                            <span className="text-xs text-jcb-textMuted font-mono">@{u.username}</span>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <div className="flex flex-col">
+                                            <span className="text-sm text-jcb-textMain font-medium">{u.email}</span>
+                                            <span className="text-xs text-jcb-textMuted">{u.phoneNumber || 'No phone'}</span>
+                                        </div>
+                                    </td>
                                     <td className="px-6 py-4">
                                         <span className={`px-3 py-1 rounded-full text-xs font-bold border ${
                                             u.role === 'ADMIN' ? 'bg-purple-50 text-purple-700 border-purple-200' :
                                             u.role === 'CUSTOMER' ? 'bg-gray-100 text-gray-700 border-gray-200' :
                                             u.role === 'OPERATOR' ? 'bg-blue-50 text-blue-700 border-blue-200' :
                                             u.role === 'DISPATCH_MANAGER' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                                            u.role === 'MAINTENANCE_MANAGER' ? 'bg-amber-50 text-amber-800 border-amber-200' :
                                             u.role === 'FINANCE_OFFICER' ? 'bg-green-50 text-green-700 border-green-200' :
                                             'bg-orange-50 text-orange-700 border-orange-200'
                                         }`}>
