@@ -1,9 +1,12 @@
 package com.se.jcb_mng.controllers;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -27,12 +30,17 @@ public class MachineController {
         this.machineService = machineService;
     }
 
-    // CREATE (Admin or Operation Manager)
+        // CREATE (Admin, Operation Manager, or an operator registering a field machine)
     @PostMapping("/add")
-    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATION_MANAGER')")
-    public ResponseEntity<?> addMachine(@RequestBody Machine machine) {
+        @PreAuthorize("hasAnyRole('ADMIN', 'OPERATION_MANAGER', 'OPERATOR')")
+        public ResponseEntity<?> addMachine(Authentication authentication, @RequestBody Machine machine) {
         try {
-            return ResponseEntity.ok(machineService.addMachine(machine));
+            boolean isOperator = authentication.getAuthorities().stream()
+                .anyMatch(authority -> "ROLE_OPERATOR".equals(authority.getAuthority()));
+            Machine createdMachine = isOperator
+                ? machineService.addOperatorMachine(authentication.getName(), machine)
+                : machineService.addMachine(machine);
+            return ResponseEntity.ok(createdMachine);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
@@ -48,6 +56,12 @@ public class MachineController {
     @GetMapping("/available")
     public ResponseEntity<List<Machine>> getAvailableMachines() {
         return ResponseEntity.ok(machineService.getAvailableMachines());
+    }
+
+    @GetMapping("/my")
+    @PreAuthorize("hasRole('OPERATOR')")
+    public ResponseEntity<List<Machine>> getMyMachines(Authentication authentication) {
+        return ResponseEntity.ok(machineService.getMachinesForOperator(authentication.getName()));
     }
 
     // UPDATE (Admin or Operation Manager)
@@ -71,6 +85,36 @@ public class MachineController {
         }
     }
 
+    @PutMapping("/{id}/operator-update")
+    @PreAuthorize("hasRole('OPERATOR')")
+    public ResponseEntity<?> updateOperatorMachine(Authentication authentication,
+                                                   @PathVariable Long id,
+                                                   @RequestBody OperatorMachineUpdateRequest request) {
+        try {
+            if (request == null) {
+                throw new IllegalArgumentException("Machine update details are required");
+            }
+            LocalDate startDate = parseDate(request.startDate());
+            LocalDate endDate = parseDate(request.endDate());
+            return ResponseEntity.ok(machineService.updateOperatorMachine(
+                    id, authentication.getName(), request.status(), request.operationalStatus(),
+                    request.currentLocation(), startDate, endDate));
+        } catch (IllegalArgumentException | DateTimeParseException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @DeleteMapping("/{id}/operator-delete")
+    @PreAuthorize("hasRole('OPERATOR')")
+    public ResponseEntity<?> deleteOperatorMachine(Authentication authentication, @PathVariable Long id) {
+        try {
+            machineService.deleteOperatorMachine(id, authentication.getName());
+            return ResponseEntity.ok("Machine removed successfully");
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
     // DELETE (Admin only)
     @DeleteMapping("/delete/{id}")
     @PreAuthorize("hasRole('ADMIN')")
@@ -82,4 +126,11 @@ public class MachineController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
+
+    private LocalDate parseDate(String date) {
+        return date == null || date.isBlank() ? null : LocalDate.parse(date);
+    }
+
+    public record OperatorMachineUpdateRequest(String status, String operationalStatus,
+                                               String currentLocation, String startDate, String endDate) {}
 }

@@ -1,5 +1,7 @@
 package com.se.jcb_mng.entities;
 
+import java.time.LocalDate;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -30,7 +32,19 @@ public class Machine {
     private String operationalStatus; // OPERATIONAL, NON_OPERATIONAL
 
     @Column(nullable = false, unique = true)
-    private String serialNumber; // <-- ADDED THIS FIELD (Required & Unique)
+    private String serialNumber;
+
+    @Column(name = "current_location")
+    private String currentLocation; // e.g., "Colombo Site A", "Kandy Warehouse"
+
+    @Column(name = "start_date")
+    private LocalDate startDate; // Deployment start
+
+    @Column(name = "end_date")
+    private LocalDate endDate; // Expected return date
+
+    @Column(name = "created_by_username")
+    private String createdByUsername;
 
     public Machine() {}
 
@@ -58,4 +72,16 @@ public class Machine {
 
     public String getSerialNumber() { return serialNumber; }
     public void setSerialNumber(String serialNumber) { this.serialNumber = serialNumber; }
+
+    public String getCurrentLocation() { return currentLocation; }
+    public void setCurrentLocation(String currentLocation) { this.currentLocation = currentLocation; }
+
+    public LocalDate getStartDate() { return startDate; }
+    public void setStartDate(LocalDate startDate) { this.startDate = startDate; }
+
+    public LocalDate getEndDate() { return endDate; }
+    public void setEndDate(LocalDate endDate) { this.endDate = endDate; }
+
+    public String getCreatedByUsername() { return createdByUsername; }
+    public void setCreatedByUsername(String createdByUsername) { this.createdByUsername = createdByUsername; }
 }

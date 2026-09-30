@@ -10,6 +10,8 @@ public interface MachineRepository extends JpaRepository<Machine, Long> {
     // Custom query to let customers only see available machines
     List<Machine> findByStatus(String status);
 
+    List<Machine> findByCreatedByUsername(String username);
+
     boolean existsBySerialNumber(String serialNumber);
 
     boolean existsBySerialNumberAndIdNot(String serialNumber, Long id);
