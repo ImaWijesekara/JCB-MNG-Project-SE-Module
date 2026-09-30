@@ -4,10 +4,10 @@ import { AuthContext } from '../context/AuthContext';
 
 // Services
 import { getAllUsers } from '../services/userService';
-import { getAllMachines } from '../services/machineService';
+import { getAllMachines, getMyMachines } from '../services/machineService';
 import { getAllBookings, getMyBookings } from '../services/bookingService';
 import { getAllFeedback, getMyFeedback } from '../services/feedbackService';
-import { getAllMaintenance, getMyTasks } from '../services/maintenanceService';
+import { getAllOperatorTasks, getMyOperatorTasks } from '../services/operatorService';
 import { getAllPayments } from '../services/paymentService';
 // Assuming you have a jobService, if not, it will gracefully fallback
 import { getMyJobs, getAllJobs } from '../services/jobService'; 
@@ -24,6 +24,10 @@ const overviewLinks = {
         ['Fleet Inventory', '/dashboard/machines'],
         ['Maintenance Logs', '/dashboard/maintenance'],
     ],
+    MAINTENANCE_MANAGER: [
+        ['Manage Maintenance Records', '/dashboard/maintenance'],
+        ['Monitor Fleet Status', '/dashboard/machines'],
+    ],
     DISPATCH_MANAGER: [
         ['Manage Bookings', '/dashboard/bookings'],
         ['Dispatch Operators', '/dashboard/jobs'],
@@ -36,6 +40,7 @@ const overviewLinks = {
     OPERATOR: [
         ['View My Jobs', '/dashboard/jobs'],
         ['Log Maintenance', '/dashboard/maintenance'],
+        ['Update Fleet Status', '/dashboard/machines'],
     ],
     CUSTOMER: [
         ['Browse Machines', '/dashboard/machines'],
@@ -62,6 +67,13 @@ const getOverviewStats = (role, data) => {
                 ['Non-Operational', data.machines?.filter(m => m.operationalStatus === 'NON_OPERATIONAL').length || 0, '/dashboard/machines'],
                 ['Pending Repairs', data.maintenance?.filter(t => t.status === 'SCHEDULED').length || 0, '/dashboard/maintenance'],
             ];
+        case 'MAINTENANCE_MANAGER':
+            return [
+                ['Scheduled Tasks', data.maintenance?.filter(t => t.status === 'SCHEDULED').length || 0, '/dashboard/maintenance'],
+                ['Machines In Maintenance', data.machines?.filter(m => m.status === 'MAINTENANCE').length || 0, '/dashboard/machines'],
+                ['Non-Operational Fleet', data.machines?.filter(m => m.operationalStatus === 'NON_OPERATIONAL').length || 0, '/dashboard/machines'],
+                ['Completed Tasks', data.maintenance?.filter(t => t.status === 'COMPLETED').length || 0, '/dashboard/maintenance'],
+            ];
         case 'DISPATCH_MANAGER':
             return [
                 ['Pending Requests', data.bookings?.filter(b => b.status === 'PENDING').length || 0, '/dashboard/bookings'],
@@ -76,10 +88,10 @@ const getOverviewStats = (role, data) => {
             ];
         case 'OPERATOR':
             return [
-                ['Assigned Jobs', data.jobs?.filter(j => j.status === 'ASSIGNED').length || 0, '/dashboard/jobs'],
-                ['In Progress', data.jobs?.filter(j => j.status === 'IN_PROGRESS').length || 0, '/dashboard/jobs'],
-                ['Completed', data.jobs?.filter(j => j.status === 'COMPLETED').length || 0, '/dashboard/jobs'],
-                ['Broken Machines', data.maintenance?.filter(t => t.status === 'SCHEDULED').length || 0, '/dashboard/maintenance'],
+                ['Pending Jobs', data.jobs?.filter(j => j.status === 'ASSIGNED').length || 0, '/dashboard/jobs'],
+                ['Active in Field', data.jobs?.filter(j => j.status === 'IN_PROGRESS').length || 0, '/dashboard/jobs'],
+                ['Pending Repairs', data.maintenance?.filter(t => t.status === 'SCHEDULED' || t.status === 'IN_PROGRESS').length || 0, '/dashboard/maintenance'],
+                ['Completed Tasks', data.jobs?.filter(j => j.status === 'COMPLETED').length || 0, '/dashboard/jobs'],
             ];
         case 'CUSTOMER':
         default:
@@ -112,7 +124,7 @@ const DashboardSection = () => {
                         getAllUsers().catch(() => []), 
                         getAllMachines().catch(() => []), 
                         getAllBookings().catch(() => []), 
-                        getAllMaintenance().catch(() => []),
+                        getAllOperatorTasks().catch(() => []),
                         getAllJobs ? getAllJobs().catch(() => []) : Promise.resolve([])
                     ]);
                     data = { ...data, users, machines, bookings, maintenance, jobs };
@@ -120,7 +132,14 @@ const DashboardSection = () => {
                 } else if (role === 'OPERATION_MANAGER') {
                     const [machines, maintenance] = await Promise.all([
                         getAllMachines().catch(() => []), 
-                        getAllMaintenance().catch(() => [])
+                        getAllOperatorTasks().catch(() => [])
+                    ]);
+                    data = { ...data, machines, maintenance };
+
+                } else if (role === 'MAINTENANCE_MANAGER') {
+                    const [machines, maintenance] = await Promise.all([
+                        getAllMachines().catch(() => []),
+                        getAllOperatorTasks().catch(() => [])
                     ]);
                     data = { ...data, machines, maintenance };
                 
@@ -136,11 +155,12 @@ const DashboardSection = () => {
                     data = { ...data, payments };
 
                 } else if (role === 'OPERATOR') {
-                    const [jobs, maintenance] = await Promise.all([
+                    const [jobs, maintenance, machines] = await Promise.all([
                         getMyJobs().catch(() => []), 
-                        getMyTasks().catch(() => [])
+                        getMyOperatorTasks().catch(() => []),
+                        getMyMachines().catch(() => [])
                     ]);
-                    data = { ...data, jobs, maintenance };
+                    data = { ...data, jobs, maintenance, machines };
 
                 } else if (role === 'CUSTOMER') {
                     const [machines, bookings, feedback] = await Promise.all([
@@ -171,6 +191,7 @@ const DashboardSection = () => {
         switch (role) {
             case 'ADMIN': return 'Executive Command Center';
             case 'OPERATION_MANAGER': return 'Fleet Operations Overview';
+            case 'MAINTENANCE_MANAGER': return 'Maintenance Operations Overview';
             case 'DISPATCH_MANAGER': return 'Logistics & Dispatch Board';
             case 'FINANCE_OFFICER': return 'Financial Control Panel';
             case 'OPERATOR': return 'Operator Workspace';
@@ -182,6 +203,7 @@ const DashboardSection = () => {
         switch (role) {
             case 'ADMIN': return 'Supervisory overview of system health, users, and core operations.';
             case 'OPERATION_MANAGER': return 'Monitor machine inventory, health, and scheduled maintenance tasks.';
+            case 'MAINTENANCE_MANAGER': return 'Schedule repairs, assign technicians, and track maintenance history across the fleet.';
             case 'DISPATCH_MANAGER': return 'Review incoming booking requests and allocate operators to machines.';
             case 'FINANCE_OFFICER': return 'Track pending payments, generate invoices, and analyze revenue.';
             case 'OPERATOR': return 'Track your active job assignments and log maintenance requests.';

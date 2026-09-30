@@ -18,6 +18,11 @@ const navigationByRole = {
         { label: 'Machine Fleet', path: '/dashboard/machines' },
         { label: 'Maintenance Logs', path: '/dashboard/maintenance' },
     ],
+    MAINTENANCE_MANAGER: [
+        { label: 'Maintenance Dashboard', path: '/dashboard' },
+        { label: 'Maintenance Records', path: '/dashboard/maintenance' },
+        { label: 'Fleet Status', path: '/dashboard/machines' },
+    ],
     DISPATCH_MANAGER: [
         { label: 'Overview', path: '/dashboard' },
         { label: 'Bookings & Approvals', path: '/dashboard/bookings' },
@@ -51,6 +56,7 @@ const headerByRole = {
     OPERATOR: 'Operator Control Panel',
     FINANCE_OFFICER: 'Financial Operations',
     OPERATION_MANAGER: 'Fleet Operations Center',
+    MAINTENANCE_MANAGER: 'Maintenance Operations Center',
     DISPATCH_MANAGER: 'Dispatch Command Center'
 };
 

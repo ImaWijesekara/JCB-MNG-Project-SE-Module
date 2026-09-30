@@ -6,13 +6,14 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import DashboardSection from './pages/DashboardSection';
+import LandingPage from './pages/LandingPage';
 
 // Managers (CRUD Modules)
 import UserManager from './pages/UserManager';
-import MachineManager from './pages/MachineManager';
+import MachineManager from './pages/OperationManager';
 import BookingManager from './pages/BookingManager';
 import JobManager from './pages/JobManager';
-import MaintenanceManager from './pages/MaintenanceManager';
+import OperatorManagement from './pages/OperatorManagement';
 import PaymentManager from './pages/PaymentManager';
 import FeedbackManager from './pages/FeedbackManager';
 import InvoiceManager from './pages/InvoiceManager';
@@ -26,7 +27,8 @@ function App() {
     <Router>
       <Routes>
         {/* Public Routes */}
-        <Route path="/" element={<Login />} />
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
         {/* Authenticated Dashboard Layout */}
@@ -50,7 +52,7 @@ function App() {
           {/* 2. Operations & Fleet Inventory */}
           <Route 
             path="machines" 
-            element={<ProtectedRoute allowedRoles={['ADMIN', 'OPERATION_MANAGER', 'CUSTOMER', 'OPERATOR']}><MachineManager /></ProtectedRoute>} 
+            element={<ProtectedRoute allowedRoles={['ADMIN', 'OPERATION_MANAGER', 'MAINTENANCE_MANAGER', 'CUSTOMER', 'OPERATOR']}><MachineManager /></ProtectedRoute>}
           />
 
           {/* 3. Bookings & Approvals */}
@@ -68,7 +70,7 @@ function App() {
           {/* 5. Maintenance & Repairs */}
           <Route 
             path="maintenance" 
-            element={<ProtectedRoute allowedRoles={['ADMIN', 'OPERATION_MANAGER', 'OPERATOR']}><MaintenanceManager /></ProtectedRoute>} 
+            element={<ProtectedRoute allowedRoles={['ADMIN', 'OPERATION_MANAGER', 'MAINTENANCE_MANAGER', 'OPERATOR']}><OperatorManagement /></ProtectedRoute>}
           />
 
           {/* 6. Finance & Billing */}
