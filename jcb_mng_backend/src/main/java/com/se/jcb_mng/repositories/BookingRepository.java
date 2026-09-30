@@ -15,6 +15,10 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     // For Admins to see latest bookings first
     List<Booking> findAllByOrderByCreatedAtDesc();
 
+    List<Booking> findByStatusOrderByCreatedAtDesc(String status);
+
+    boolean existsByMachineId(Long machineId);
+
     boolean existsByMachineIdAndStatusInAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
             Long machineId,
             Collection<String> statuses,
