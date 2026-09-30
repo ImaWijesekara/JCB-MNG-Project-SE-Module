@@ -1,6 +1,6 @@
 import { useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import { AuthContext } from '../context/AuthContext';
-import { getAllMachines, getMyMachines, addMachine, updateMachine, updateOperatorMachine, updateMachineStatus, deleteMachine } from '../services/machineService';
+import { getAllMachines, getMyMachines, addMachine, addOperatorMachine, updateMachine, updateOperatorMachine, deleteMachine, deleteOperatorMachine } from '../services/machineService';
 import { Link } from 'react-router-dom';
 
 const OperationManager = () => {
@@ -8,6 +8,7 @@ const OperationManager = () => {
     
     // Role Definitions
     const isManager = user?.role === 'ADMIN' || user?.role === 'OPERATION_MANAGER';
+    const isMaintenanceManager = user?.role === 'MAINTENANCE_MANAGER';
     const isOperator = user?.role === 'OPERATOR';
     const isCustomer = user?.role === 'CUSTOMER';
     
@@ -21,6 +22,7 @@ const OperationManager = () => {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [editingId, setEditingId] = useState(null);
+    const [isCreating, setIsCreating] = useState(false);
     const [fieldErrors, setFieldErrors] = useState({});
     
     // Universal Form State
@@ -66,6 +68,7 @@ const OperationManager = () => {
             startDate: '', endDate: ''
         });
         setEditingId(null);
+        setIsCreating(false);
         setError('');
         setFieldErrors({});
     };
@@ -73,6 +76,7 @@ const OperationManager = () => {
     // Populates the form based on who is clicking
     const handleEdit = (machine) => {
         setEditingId(machine.id);
+        setIsCreating(false);
         setFormData({
             name: machine.name || '',
             modelName: machine.modelName || '',
@@ -94,7 +98,7 @@ const OperationManager = () => {
     // Validation depends on the role
     const validateForm = () => {
         const errors = {};
-        if (isManager) {
+        if (isManager || isCreating) {
             const currentYear = new Date().getFullYear();
             if (formData.name.trim().length < 3) errors.name = "Name is too short.";
             if (formData.serialNumber.trim().length < 4) errors.serialNumber = "Invalid serial number.";
@@ -117,7 +121,7 @@ const OperationManager = () => {
         
         if (!validateForm()) return;
 
-        const machinePayload = isOperator ? {
+        const machinePayload = isOperator && !isCreating ? {
             status: formData.status,
             operationalStatus: formData.operationalStatus,
             currentLocation: formData.currentLocation,
@@ -134,9 +138,14 @@ const OperationManager = () => {
                     await updateMachine(editingId, machinePayload);
                 }
                 setSuccess(isOperator ? 'Field logistics and machine health updated!' : 'Machine asset details updated successfully!');
-            } else if (isManager) {
-                await addMachine(machinePayload);
-                setSuccess('New machine registered into company assets!');
+            } else if (isManager || (isOperator && isCreating)) {
+                if (isOperator) {
+                    await addOperatorMachine(machinePayload);
+                    setSuccess('Field machine registered successfully!');
+                } else {
+                    await addMachine(machinePayload);
+                    setSuccess('New machine registered into company assets!');
+                }
             }
             resetForm();
             await loadMachines();
@@ -149,16 +158,29 @@ const OperationManager = () => {
     };
 
     const handleDelete = async (id) => {
-        if (!window.confirm('WARNING: Deleting an asset removes all its financial history. Proceed?')) return;
+        const confirmation = isOperator
+            ? 'Remove this machine you registered? Machines with bookings or field-task history cannot be removed.'
+            : 'WARNING: Deleting an asset removes all its financial history. Proceed?';
+        if (!window.confirm(confirmation)) return;
         try {
-            await deleteMachine(id);
+            if (isOperator) {
+                await deleteOperatorMachine(id);
+            } else {
+                await deleteMachine(id);
+            }
             setMachines((current) => current.filter((m) => m.id !== id));
-            setSuccess('Asset removed from fleet.');
+            setSuccess('Machine removed from fleet.');
             if (editingId === id) resetForm();
             setTimeout(() => setSuccess(''), 4000);
         } catch (err) {
             setError(err.response?.data || 'Failed to delete machine.');
         }
+    };
+
+    const handleCreate = () => {
+        resetForm();
+        setIsCreating(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     // --- CUSTOMER E-COMMERCE RENDERER ---
@@ -210,15 +232,21 @@ const OperationManager = () => {
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 pb-6 border-b border-jcb-border">
                 <div>
                     <h2 className="text-3xl font-extrabold tracking-tight text-jcb-textMain">
-                        {isCustomer ? 'Equipment Catalog' : isManager ? 'Asset Management' : 'Field Logistics'}
+                        {isCustomer ? 'Equipment Catalog' : isManager ? 'Asset Management' : isOperator ? 'Field Logistics' : 'Fleet Status'}
                     </h2>
                     <p className="text-sm text-jcb-textMuted mt-1.5 font-medium">
-                        {isCustomer ? 'Browse machinery available at different site locations.' : 
-                         isManager ? 'Manage inventory, base pricing, and asset registration.' : 
+                        {isCustomer ? 'Browse machinery available at different site locations.' :
+                         isManager ? 'Manage inventory, base pricing, and asset registration.' :
+                         isMaintenanceManager ? 'Monitor machine health and field locations alongside maintenance records.' :
                          'Update your machine locations and report breakdowns directly from the field.'}
                     </p>
                 </div>
                 <div className="mt-4 md:mt-0 flex items-center gap-3">
+                    {isOperator && !isCreating && !editingId && (
+                        <button type="button" onClick={handleCreate} className="bg-jcb-brand text-black font-bold py-2 px-4 rounded-lg hover:bg-yellow-400 transition shadow-sm">
+                            Register Machine
+                        </button>
+                    )}
                     <div className="relative">
                         <svg className="w-4 h-4 absolute left-3 top-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                         <input type="text" placeholder="Search by name, site..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
@@ -234,7 +262,7 @@ const OperationManager = () => {
             {isCustomer && renderCustomerCatalog()}
 
             {/* MANAGER & OPERATOR FORM */}
-            {(isManager || (isOperator && editingId)) && (
+            {(isManager || (isOperator && (editingId || isCreating))) && (
                 <div className="bg-white border border-jcb-border shadow-sm rounded-xl overflow-hidden mb-10 transition-all">
                     <div className="bg-gray-50 px-6 py-4 border-b border-jcb-border flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -245,17 +273,17 @@ const OperationManager = () => {
                                 }
                             </div>
                             <h3 className="text-base font-bold text-jcb-textMain">
-                                {isOperator ? `Update Location: ${formData.name}` : editingId ? 'Modify Fleet Asset' : 'Register New Machine'}
+                                {isOperator ? isCreating ? 'Register Field Machine' : `Update Location: ${formData.name}` : editingId ? 'Modify Fleet Asset' : 'Register New Machine'}
                             </h3>
                         </div>
-                        {editingId && (
+                        {(editingId || isCreating) && (
                             <button type="button" onClick={resetForm} className="text-sm font-semibold text-gray-500 hover:text-gray-800 bg-white border border-gray-200 px-3 py-1.5 rounded-md shadow-sm">Cancel</button>
                         )}
                     </div>
                     
                     <form onSubmit={handleSubmit} className="p-6">
                         {/* ASSET CREATION - ONLY VISIBLE TO MANAGERS */}
-                        {isManager && (
+                        {(isManager || isCreating) && (
                             <div className="grid grid-cols-1 md:grid-cols-6 gap-5 items-start mb-5 border-b border-gray-100 pb-6">
                                 <div className="md:col-span-2">
                                     <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">Machine Name</label>
@@ -329,7 +357,7 @@ const OperationManager = () => {
 
                             <div className={isOperator ? 'md:col-span-6 flex justify-end' : 'md:col-span-1'}>
                                 <button type="submit" disabled={isSaving} className="w-full bg-jcb-brand text-black font-bold py-2.5 px-4 rounded-lg hover:bg-yellow-400 transition shadow-sm disabled:opacity-70 disabled:cursor-not-allowed">
-                                    {isSaving ? 'Saving...' : 'Update'}
+                                    {isSaving ? 'Saving...' : isCreating ? 'Register Machine' : 'Update'}
                                 </button>
                             </div>
                         </div>
@@ -382,11 +410,13 @@ const OperationManager = () => {
                                         </td>
                                         <td className="px-6 py-4 text-right">
                                             <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100">
-                                                <button onClick={() => handleEdit(m)} className={`px-3 py-1.5 rounded-md text-xs font-bold transition flex items-center gap-1 ${isOperator ? 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200' : 'text-blue-600 hover:bg-blue-50'}`}>
-                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
-                                                    {isOperator && 'Update Logistics'}
-                                                </button>
-                                                {isManager && (
+                                                {(isManager || isOperator) && (
+                                                    <button onClick={() => handleEdit(m)} className={`px-3 py-1.5 rounded-md text-xs font-bold transition flex items-center gap-1 ${isOperator ? 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200' : 'text-blue-600 hover:bg-blue-50'}`}>
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                                                        {isOperator && 'Update Logistics'}
+                                                    </button>
+                                                )}
+                                                {(isManager || (isOperator && m.createdByUsername === user.username)) && (
                                                     <button onClick={() => handleDelete(m.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
                                                 )}
                                             </div>
