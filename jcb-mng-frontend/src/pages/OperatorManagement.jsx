@@ -7,7 +7,7 @@ import { getAllUsers } from '../services/userService';
 const OperatorManagement = () => {
     const { user } = useContext(AuthContext);
     
-    const isManager = user?.role === 'ADMIN' || user?.role === 'OPERATION_MANAGER';
+    const isManager = user?.role === 'ADMIN' || user?.role === 'OPERATION_MANAGER' || user?.role === 'MAINTENANCE_MANAGER';
     const isOperator = user?.role === 'OPERATOR';
 
     // Data State
