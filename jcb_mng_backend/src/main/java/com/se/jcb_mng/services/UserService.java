@@ -20,61 +20,32 @@ public class UserService {
         this.passwordEncoder = passwordEncoder;
     }
 
-
+    // CREATE / REGISTER
     public User registerUser(User user) {
         if (userRepository.existsByUsername(user.getUsername())) {
-            throw new IllegalArgumentException("Username is already taken");
+            throw new IllegalArgumentException("Username is already taken.");
         }
         if (userRepository.existsByEmail(user.getEmail())) {
-            throw new IllegalArgumentException("Email is already registered");
+            throw new IllegalArgumentException("Email is already registered.");
         }
 
-        // Encrypt the password before saving
-        user.setPasswordHash(passwordEncoder.encode(user.getPasswordHash()));
+        // Encrypt password before saving
+        if (user.getPasswordHash() != null && !user.getPasswordHash().isEmpty()) {
+            user.setPasswordHash(passwordEncoder.encode(user.getPasswordHash()));
+        }
 
+        // Standardize Role (Default to CUSTOMER, remove "ROLE_" prefix if present)
         String role = user.getRole();
         if (role == null || role.isBlank()) {
             role = "CUSTOMER";
         }
         role = role.trim().toUpperCase();
         if (role.startsWith("ROLE_")) {
-            role = role.substring("ROLE_".length());
+            role = role.substring(5);
         }
         user.setRole(role);
 
         return userRepository.save(user);
-    }
-
-    public Optional<User> findByUsername(String username) {
-        return userRepository.findByUsername(username);
-    }
-
-    public boolean isAdmin(String username) {
-        return findByUsername(username)
-                .map(User::getRole)
-                .map(role -> role != null ? role.trim().toUpperCase() : "")
-                .map(role -> role.startsWith("ROLE_") ? role.substring("ROLE_".length()) : role)
-                .map("ADMIN"::equals)
-                .orElse(false);
-    }
-
-
-    public User updateProfile(Long userId, String fullName, String phoneNumber, String address) {
-        User existingUser = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
-
-        existingUser.setFullName(fullName);
-        existingUser.setPhoneNumber(phoneNumber);
-        existingUser.setAddress(address);
-
-        return userRepository.save(existingUser);
-    }
-
-
-    // CREATE
-    public User createUser(User user) {
-        // We can just reuse the robust registerUser logic for Admin creation
-        return registerUser(user);
     }
 
     // READ (All)
@@ -82,20 +53,26 @@ public class UserService {
         return userRepository.findAll();
     }
 
-    // READ (Single)
+    // READ (Single by ID)
     public User getUserById(Long id) {
         return userRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
     }
 
-    // UPDATE (Admin updating someone else's role, email, etc.)
+    // READ (Single by Username for Login/Security)
+    public Optional<User> findByUsername(String username) {
+        return userRepository.findByUsername(username);
+    }
+
+    // UPDATE
     public User updateUser(Long id, User updatedData) {
         User existingUser = userRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-        // Make sure the admin isn't assigning an email that belongs to someone else
-        if (!existingUser.getEmail().equals(updatedData.getEmail()) && userRepository.existsByEmail(updatedData.getEmail())) {
-            throw new IllegalArgumentException("Email is already registered by another user.");
+        // Check if email is being changed to one that already exists
+        if (!existingUser.getEmail().equalsIgnoreCase(updatedData.getEmail()) &&
+                userRepository.existsByEmail(updatedData.getEmail())) {
+            throw new IllegalArgumentException("Email is already used by another user.");
         }
 
         // Update fields
@@ -104,35 +81,19 @@ public class UserService {
         existingUser.setPhoneNumber(updatedData.getPhoneNumber());
         existingUser.setAddress(updatedData.getAddress());
 
-        // Format and update Role
+        // Update Role
         String role = updatedData.getRole();
         if (role != null && !role.isBlank()) {
             role = role.trim().toUpperCase();
             if (role.startsWith("ROLE_")) {
-                role = role.substring("ROLE_".length());
+                role = role.substring(5);
             }
             existingUser.setRole(role);
         }
 
-        // Only update password if the admin typed a new one
-        if (updatedData.getPasswordHash() != null && !updatedData.getPasswordHash().isEmpty()) {
+        // Only update password if a new one was actually typed in
+        if (updatedData.getPasswordHash() != null && !updatedData.getPasswordHash().isBlank()) {
             existingUser.setPasswordHash(passwordEncoder.encode(updatedData.getPasswordHash()));
-        }
-
-        return userRepository.save(existingUser);
-    }
-
-    // UPDATE ROLE ONLY (Quick action for Admin dashboard)
-    public User updateUserRole(Long id, String newRole) {
-        User existingUser = userRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
-
-        if (newRole != null && !newRole.isBlank()) {
-            String role = newRole.trim().toUpperCase();
-            if (role.startsWith("ROLE_")) {
-                role = role.substring("ROLE_".length());
-            }
-            existingUser.setRole(role);
         }
 
         return userRepository.save(existingUser);
@@ -141,7 +102,7 @@ public class UserService {
     // DELETE
     public void deleteUser(Long id) {
         if (!userRepository.existsById(id)) {
-            throw new IllegalArgumentException("User not found");
+            throw new IllegalArgumentException("User not found.");
         }
         userRepository.deleteById(id);
     }
