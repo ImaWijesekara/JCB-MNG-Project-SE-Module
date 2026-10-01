@@ -1,12 +1,15 @@
 import { useState, useEffect, useContext, useMemo } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { submitFeedback, getAllFeedback, getMyFeedback, deleteFeedback } from '../services/feedbackService';
+import { getMyBookings } from '../services/bookingService';
 
 const FeedbackManager = () => {
     const { user } = useContext(AuthContext);
     
     // Data State
     const [feedbacks, setFeedbacks] = useState([]);
+    const [bookings, setBookings] = useState([]);
+    const [bookingId, setBookingId] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     
     // UI State
@@ -31,6 +34,9 @@ const FeedbackManager = () => {
                 ? await getAllFeedback()
                 : await getMyFeedback();
             setFeedbacks(data);
+            if (user.role === 'CUSTOMER') {
+                setBookings(await getMyBookings());
+            }
         } catch (err) {
             setError(err.response?.data || 'Failed to load feedback records.');
         } finally {
@@ -59,6 +65,11 @@ const FeedbackManager = () => {
         setSuccess('');
         setCommentError('');
 
+        if (!bookingId) {
+            setError('Please select a booking before submitting your review.');
+            return;
+        }
+
         if (comment.trim().length < 10) {
             setCommentError('Please provide a slightly more detailed review (minimum 10 characters).');
             return;
@@ -66,10 +77,11 @@ const FeedbackManager = () => {
 
         setIsSubmitting(true);
         try {
-            const feedback = await submitFeedback({ message: comment.trim(), rating }); // Adjusted payload structure based on typical Spring Boot DTOs
+            const feedback = await submitFeedback({ bookingId, message: comment.trim(), rating });
             setFeedbacks((current) => [feedback, ...current]);
             setSuccess('Thank you! Your feedback has been successfully published.');
             setComment('');
+            setBookingId('');
             setRating(5);
             setHoverRating(0);
             setTimeout(() => setSuccess(''), 5000);
@@ -179,10 +191,33 @@ const FeedbackManager = () => {
                         <div className="p-1.5 rounded-md bg-jcb-brand/20 text-yellow-700">
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                         </div>
-                        <h3 className="text-base font-bold text-jcb-textMain">Submit New Review</h3>
+                        <h3 className="text-base font-bold text-jcb-textMain">Review a Booked JCB</h3>
                     </div>
                     
                     <form onSubmit={handleSubmit} className="p-6">
+                        <div className="mb-5">
+                            <label htmlFor="feedback-booking" className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-2">Your Booking</label>
+                            <select
+                                id="feedback-booking"
+                                value={bookingId}
+                                onChange={(e) => setBookingId(e.target.value)}
+                                disabled={isLoading || bookings.length === 0}
+                                required
+                                className="w-full px-4 py-2.5 bg-white border border-jcb-border rounded-lg text-sm text-jcb-textMain focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 disabled:bg-gray-50"
+                            >
+                                <option value="">{isLoading ? 'Loading your bookings...' : bookings.length === 0 ? 'No bookings available to review' : 'Select a booked JCB'}</option>
+                                {bookings
+                                    .filter((booking) => !feedbacks.some((feedback) => feedback.bookingId === booking.id))
+                                    .map((booking) => (
+                                        <option key={booking.id} value={booking.id}>
+                                            #{booking.id} - {booking.machineDetails} - {booking.startDate} to {booking.endDate} ({booking.status})
+                                        </option>
+                                    ))}
+                            </select>
+                            {!isLoading && bookings.length > 0 && bookings.every((booking) => feedbacks.some((feedback) => feedback.bookingId === booking.id)) && (
+                                <p className="mt-1.5 text-xs text-jcb-textMuted">You have already reviewed all your bookings.</p>
+                            )}
+                        </div>
                         <div className="mb-5">
                             <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-2">Overall Rating</label>
                             {/* VIVA FLEX 3: Interactive SVG Star Rating */}
@@ -244,6 +279,7 @@ const FeedbackManager = () => {
                             <tr>
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">ID</th>
                                 {user?.role === 'ADMIN' && <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Customer</th>}
+                                <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">JCB</th>
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Rating</th>
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Comment</th>
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Date</th>
@@ -253,7 +289,7 @@ const FeedbackManager = () => {
                         <tbody className="divide-y divide-gray-100">
                             {isLoading ? (
                                 <tr>
-                                    <td colSpan={user?.role === 'ADMIN' ? 6 : 5} className="px-6 py-12 text-center text-jcb-textMuted">
+                                    <td colSpan={user?.role === 'ADMIN' ? 7 : 5} className="px-6 py-12 text-center text-jcb-textMuted">
                                         <div className="flex flex-col items-center justify-center">
                                             <svg className="animate-spin h-8 w-8 text-gray-300 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                                             <span className="font-medium">Loading feedback records...</span>
@@ -262,7 +298,7 @@ const FeedbackManager = () => {
                                 </tr>
                             ) : filteredFeedbacks.length === 0 ? (
                                 <tr>
-                                    <td colSpan={user?.role === 'ADMIN' ? 6 : 5} className="px-6 py-12 text-center text-jcb-textMuted">
+                                    <td colSpan={user?.role === 'ADMIN' ? 7 : 5} className="px-6 py-12 text-center text-jcb-textMuted">
                                         <div className="flex flex-col items-center justify-center">
                                             <div className="bg-gray-50 p-3 rounded-full mb-3">
                                                 <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
@@ -275,6 +311,7 @@ const FeedbackManager = () => {
                                 <tr key={f.id} className="hover:bg-blue-50/30 transition-colors group">
                                     <td className="px-6 py-4 text-jcb-textMuted font-mono font-medium">#{f.id}</td>
                                     {user?.role === 'ADMIN' && <td className="px-6 py-4 font-bold text-jcb-textMain">{f.username || f.customerName}</td>}
+                                    <td className="px-6 py-4 text-jcb-textMain">{f.machineDetails || 'Not linked to a booking'}</td>
                                     <td className="px-6 py-4">
                                         {renderStars(f.rating)}
                                     </td>

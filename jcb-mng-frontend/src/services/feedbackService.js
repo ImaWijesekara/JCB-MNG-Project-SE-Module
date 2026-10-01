@@ -1,7 +1,8 @@
 import api from './api';
 
-export const submitFeedback = async (message, rating) => {
+export const submitFeedback = async ({ bookingId, message, rating }) => {
     const params = new URLSearchParams();
+    params.append('bookingId', bookingId);
     params.append('message', message);
     params.append('rating', rating);
     
