@@ -32,10 +32,12 @@ public class FeedbackController {
     @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<?> submitFeedback(
             Authentication authentication,
+            @RequestParam Long bookingId,
             @RequestParam String message,
             @RequestParam Integer rating) {
         try {
-            Feedback feedback = feedbackService.submitFeedback(authentication.getName(), message, rating);
+            Feedback feedback = feedbackService.submitFeedback(
+                    authentication.getName(), bookingId, message, rating);
             return ResponseEntity.ok(toResponse(feedback));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
@@ -89,6 +91,9 @@ public class FeedbackController {
         return new FeedbackResponse(
                 feedback.getId(),
                 feedback.getUser().getUsername(),
+                feedback.getBooking() == null ? null : feedback.getBooking().getId(),
+                feedback.getBooking() == null ? null : feedback.getBooking().getMachine().getName()
+                    + " (" + feedback.getBooking().getMachine().getModelName() + ")",
                 feedback.getMessage(),
                 feedback.getRating(),
                 feedback.getSubmittedAt());
@@ -97,6 +102,8 @@ public class FeedbackController {
     public record FeedbackResponse(
             Long id,
             String username,
+            Long bookingId,
+            String machineDetails,
             String message,
             Integer rating,
             LocalDateTime submittedAt) {
