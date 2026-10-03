@@ -1,5 +1,6 @@
 package com.se.jcb_mng.repositories;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -15,6 +16,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     // Auto-generates SQL to find a user by email
     Optional<User> findByEmail(String email);
+
+    List<User> findByRoleOrderByUsernameAsc(String role);
 
     // Used in UserService validation to prevent duplicate accounts
     boolean existsByUsername(String username);

@@ -93,6 +93,15 @@ public class UserController {
         return ResponseEntity.ok(users);
     }
 
+    @GetMapping("/operators")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATION_MANAGER', 'MAINTENANCE_MANAGER', 'DISPATCH_MANAGER')")
+    public ResponseEntity<List<OperatorResponse>> getOperators() {
+        List<OperatorResponse> operators = userService.getOperators().stream()
+                .map(operator -> new OperatorResponse(operator.getId(), operator.getUsername()))
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(operators);
+    }
+
     // 4. CREATE USER FROM DASHBOARD (Admin Only)
     @PostMapping("/create")
     @PreAuthorize("hasRole('ADMIN')")
@@ -192,4 +201,6 @@ public class UserController {
         String role, 
         LocalDateTime createdAt
     ) {}
+
+    public record OperatorResponse(Long id, String username) {}
 }

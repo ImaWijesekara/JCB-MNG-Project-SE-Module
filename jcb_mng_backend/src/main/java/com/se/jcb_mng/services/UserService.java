@@ -53,6 +53,10 @@ public class UserService {
         return userRepository.findAll();
     }
 
+    public List<User> getOperators() {
+        return userRepository.findByRoleOrderByUsernameAsc("OPERATOR");
+    }
+
     // READ (Single by ID)
     public User getUserById(Long id) {
         return userRepository.findById(id)
