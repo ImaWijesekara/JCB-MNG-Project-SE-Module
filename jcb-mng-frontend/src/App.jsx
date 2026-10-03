@@ -64,7 +64,7 @@ function App() {
           {/* 4. Operator Assignments & Dispatch */}
           <Route 
             path="jobs" 
-            element={<ProtectedRoute allowedRoles={['ADMIN', 'DISPATCH_MANAGER', 'OPERATOR']}><JobManager /></ProtectedRoute>} 
+            element={<ProtectedRoute allowedRoles={['ADMIN', 'OPERATION_MANAGER', 'DISPATCH_MANAGER', 'OPERATOR']}><JobManager /></ProtectedRoute>} 
           />
 
           {/* 5. Maintenance & Repairs */}

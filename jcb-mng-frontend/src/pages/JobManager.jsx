@@ -1,8 +1,7 @@
 import { useState, useEffect, useContext, useCallback } from 'react';
 import { AuthContext } from '../context/AuthContext';
-import { assignJob, getAllJobs, getMyJobs, updateJobStatus, deleteJob } from '../services/jobService';
-import { getAllBookings } from '../services/bookingService';
-import { getAllUsers } from '../services/userService';
+import { assignJob, getAllJobs, getAvailableBookings, getMyJobs, updateJobStatus, deleteJob } from '../services/jobService';
+import { getOperators } from '../services/userService';
 
 const JobManager = () => {
     const { user } = useContext(AuthContext);
@@ -23,35 +22,59 @@ const JobManager = () => {
     const [bookingId, setBookingId] = useState('');
     const [operatorUsername, setOperatorUsername] = useState('');
 
-    const isDispatchAuth = user?.role === 'ADMIN' || user?.role === 'DISPATCH_MANAGER';
+    const canManageJobs = ['ADMIN', 'OPERATION_MANAGER', 'DISPATCH_MANAGER'].includes(user?.role);
+    const isAdmin = user?.role === 'ADMIN';
     const isOperator = user?.role === 'OPERATOR';
 
-    const loadData = useCallback(async () => {
-        setLoading(true);
+    const fetchData = useCallback(async () => {
+        if (canManageJobs) {
+            const [jobsData, availableBookings, availableOperators] = await Promise.all([
+                getAllJobs(),
+                getAvailableBookings(),
+                getOperators()
+            ]);
+            return { jobs: jobsData, approvedBookings: availableBookings, operators: availableOperators };
+        }
+        if (isOperator) {
+            return { jobs: await getMyJobs(), approvedBookings: [], operators: [] };
+        }
+        return { jobs: [], approvedBookings: [], operators: [] };
+    }, [canManageJobs, isOperator]);
+
+    const applyData = ({ jobs: nextJobs, approvedBookings: nextBookings, operators: nextOperators }) => {
+        setJobs(nextJobs);
+        setApprovedBookings(nextBookings);
+        setOperators(nextOperators);
         setError('');
+    };
+
+    const loadData = async () => {
+        setLoading(true);
         try {
-            if (isDispatchAuth) {
-                const [jobsData, allBookings, allUsers] = await Promise.all([
-                    getAllJobs(),
-                    getAllBookings(),
-                    getAllUsers()
-                ]);
-                setJobs(jobsData);
-                setApprovedBookings(allBookings.filter(b => b.status === 'APPROVED'));
-                setOperators(allUsers.filter(u => u.role === 'OPERATOR'));
-            } else if (isOperator) {
-                setJobs(await getMyJobs());
-            }
+            applyData(await fetchData());
         } catch (err) {
             setError(err.response?.data || 'Failed to sync job assignments.');
         } finally {
             setLoading(false);
         }
-    }, [user, isDispatchAuth, isOperator]);
+    };
 
     useEffect(() => {
-        loadData();
-    }, [loadData]);
+        let isCurrent = true;
+        fetchData()
+            .then((data) => {
+                if (isCurrent) applyData(data);
+            })
+            .catch((err) => {
+                if (isCurrent) setError(err.response?.data || 'Failed to sync job assignments.');
+            })
+            .finally(() => {
+                if (isCurrent) setLoading(false);
+            });
+        return () => {
+            isCurrent = false;
+        };
+    }, [fetchData]);
 
     const handleAssign = async (e) => {
         e.preventDefault();
@@ -128,10 +151,10 @@ const JobManager = () => {
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 pb-6 border-b border-jcb-border">
                 <div>
                     <h2 className="text-3xl font-extrabold tracking-tight text-jcb-textMain">
-                        {isDispatchAuth ? 'Logistics & Dispatch' : 'My Active Jobs'}
+                        {canManageJobs ? 'Operator Job Assignments' : 'My Active Jobs'}
                     </h2>
                     <p className="text-sm text-jcb-textMuted mt-1.5 font-medium">
-                        {isDispatchAuth ? 'Allocate available operators to approved rental bookings.' : 'View your assigned machines and update job statuses.'}
+                        {canManageJobs ? 'Assign operators to approved, unassigned rental bookings.' : 'View your assigned machines and update job statuses.'}
                     </p>
                 </div>
                 <div className="mt-4 md:mt-0 flex items-center gap-3">
@@ -165,7 +188,7 @@ const JobManager = () => {
             )}
 
             {/* DISPATCH ASSIGNMENT FORM */}
-            {isDispatchAuth && (
+            {canManageJobs && (
                 <div className="bg-white border border-jcb-border shadow-sm rounded-xl overflow-hidden mb-10 transition-all">
                     <div className="bg-gray-50 px-6 py-4 border-b border-jcb-border flex items-center gap-2">
                         <div className="p-1.5 rounded-md bg-jcb-brand/20 text-yellow-700">
@@ -189,7 +212,7 @@ const JobManager = () => {
                                         <option key={b.id} value={b.id}>Ticket #{b.id} - {b.machineDetails} (Starts: {b.startDate})</option>
                                     ))}
                                 </select>
-                                {approvedBookings.length === 0 && !loading && <p className="mt-1.5 text-xs text-green-600 font-medium">All approved bookings have been assigned.</p>}
+                                {approvedBookings.length === 0 && !loading && <p className="mt-1.5 text-xs text-jcb-textMuted font-medium">No approved, unassigned bookings are available.</p>}
                             </div>
                             <div className="md:col-span-2">
                                 <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">Select Operator</label>
@@ -200,16 +223,16 @@ const JobManager = () => {
                                     className="w-full px-4 py-2.5 bg-white border border-jcb-border rounded-lg text-sm text-jcb-textMain font-medium focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 transition-all appearance-none cursor-pointer"
                                 >
                                     <option value="">-- Choose Operator --</option>
-                                    {operators.map(op => (
-                                        <option key={op.id} value={op.username}>{op.username} ({op.email})</option>
+                                    {operators.map(operator => (
+                                        <option key={operator.username} value={operator.username}>{operator.username}</option>
                                     ))}
                                 </select>
                             </div>
                             <div className="md:col-span-1 pt-2">
-                                <button type="submit" disabled={isSubmitting || approvedBookings.length === 0} className="w-full bg-jcb-brand text-black font-bold py-2.5 px-4 rounded-lg hover:bg-yellow-400 transition shadow-sm disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                                <button type="submit" disabled={isSubmitting || approvedBookings.length === 0 || operators.length === 0} className="w-full bg-jcb-brand text-black font-bold py-2.5 px-4 rounded-lg hover:bg-yellow-400 transition shadow-sm disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2">
                                     {isSubmitting ? (
                                         <><svg className="animate-spin h-4 w-4 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Sending...</>
-                                    ) : 'Dispatch'}
+                                    ) : 'Assign Job'}
                                 </button>
                             </div>
                         </div>
@@ -227,7 +250,7 @@ const JobManager = () => {
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Ticket #</th>
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Machine Details</th>
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Schedule</th>
-                                {isDispatchAuth && <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Assigned Operator</th>}
+                                {canManageJobs && <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Assigned Operator</th>}
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Status</th>
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider text-right">Actions</th>
                             </tr>
@@ -235,7 +258,7 @@ const JobManager = () => {
                         <tbody className="divide-y divide-gray-100">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={isDispatchAuth ? 7 : 6} className="px-6 py-12 text-center text-jcb-textMuted">
+                                    <td colSpan={canManageJobs ? 7 : 6} className="px-6 py-12 text-center text-jcb-textMuted">
                                         <div className="flex flex-col items-center justify-center">
                                             <svg className="animate-spin h-8 w-8 text-gray-300 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                                             <span className="font-medium">Loading dispatch ledger...</span>
@@ -244,7 +267,7 @@ const JobManager = () => {
                                 </tr>
                             ) : jobs.length === 0 ? (
                                 <tr>
-                                    <td colSpan={isDispatchAuth ? 7 : 6} className="px-6 py-12 text-center text-jcb-textMuted">
+                                    <td colSpan={canManageJobs ? 7 : 6} className="px-6 py-12 text-center text-jcb-textMuted">
                                         <div className="flex flex-col items-center justify-center">
                                             <div className="bg-gray-50 p-3 rounded-full mb-3">
                                                 <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
@@ -259,7 +282,7 @@ const JobManager = () => {
                                     <td className="px-6 py-4 text-jcb-textMuted font-mono">#{j.bookingId}</td>
                                     <td className="px-6 py-4 text-jcb-textMain font-medium truncate max-w-xs">{j.machineDetails}</td>
                                     <td className="px-6 py-4 text-jcb-textMuted">{j.dates || j.scheduleDate}</td>
-                                    {isDispatchAuth && <td className="px-6 py-4 font-bold text-jcb-textMain">{j.operatorName || j.operatorUsername}</td>}
+                                    {canManageJobs && <td className="px-6 py-4 font-bold text-jcb-textMain">{j.operatorName || j.operatorUsername}</td>}
                                     <td className="px-6 py-4">
                                         <span className={`px-3 py-1 rounded-full text-xs font-bold border ${getStatusStyle(j.status)}`}>
                                             {j.status}
@@ -286,7 +309,7 @@ const JobManager = () => {
                                                 )}
 
                                                 {/* ADMIN/DISPATCH ACTIONS (Ghost delete button) */}
-                                                {isDispatchAuth && (
+                                                {isAdmin && (
                                                     <button onClick={() => handleDelete(j.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition opacity-0 group-hover:opacity-100" title="Delete Job">
                                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                                     </button>

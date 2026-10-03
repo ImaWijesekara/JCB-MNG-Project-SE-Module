@@ -6,6 +6,11 @@ export const getAllUsers = async () => {
     return response.data;
 };
 
+export const getOperators = async () => {
+    const response = await api.get('/users/operators');
+    return response.data;
+};
+
 // CREATE (Admin only)
 export const createUser = async (userData) => {
     const payload = {
