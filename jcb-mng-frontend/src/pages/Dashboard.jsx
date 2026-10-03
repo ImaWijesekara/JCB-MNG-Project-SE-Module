@@ -16,6 +16,7 @@ const navigationByRole = {
     OPERATION_MANAGER: [
         { label: 'Overview', path: '/dashboard' },
         { label: 'Machine Fleet', path: '/dashboard/machines' },
+        { label: 'Operator Assignments', path: '/dashboard/jobs' },
         { label: 'Maintenance Logs', path: '/dashboard/maintenance' },
     ],
     MAINTENANCE_MANAGER: [

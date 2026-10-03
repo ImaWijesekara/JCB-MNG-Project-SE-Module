@@ -22,6 +22,7 @@ const overviewLinks = {
     ],
     OPERATION_MANAGER: [
         ['Fleet Inventory', '/dashboard/machines'],
+        ['Assign Operator Jobs', '/dashboard/jobs'],
         ['Maintenance Logs', '/dashboard/maintenance'],
     ],
     MAINTENANCE_MANAGER: [
