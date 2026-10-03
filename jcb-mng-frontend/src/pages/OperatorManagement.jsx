@@ -2,7 +2,7 @@ import { useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { getAllOperatorTasks, getMyOperatorTasks, scheduleOperatorTask, updateOperatorTask, deleteOperatorTask, updateOperatorTaskStatus } from '../services/operatorService';
 import { getAllMachines, getMyMachines } from '../services/machineService';
-import { getAllUsers } from '../services/userService';
+import { getOperators } from '../services/userService';
 
 const OperatorManagement = () => {
     const { user } = useContext(AuthContext);
@@ -43,10 +43,10 @@ const OperatorManagement = () => {
             if (isManager) {
                 const [taskData, userData] = await Promise.all([
                     getAllOperatorTasks().catch(() => []),
-                    getAllUsers().catch(() => [])
+                    getOperators().catch(() => [])
                 ]);
                 setTasks(taskData);
-                setOperators(userData.filter(u => u.role === 'OPERATOR'));
+                setOperators(userData);
             } else if (isOperator) {
                 setTasks(await getMyOperatorTasks().catch(() => []));
             }

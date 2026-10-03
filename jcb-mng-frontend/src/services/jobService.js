@@ -8,6 +8,10 @@ export const getAllJobs = async () => {
     const response = await api.get('/jobs/all');
     return response.data;
 };
+export const getAvailableBookings = async () => {
+    const response = await api.get('/jobs/available-bookings');
+    return response.data;
+};
 export const getMyJobs = async () => {
     const response = await api.get('/jobs/my');
     return response.data;

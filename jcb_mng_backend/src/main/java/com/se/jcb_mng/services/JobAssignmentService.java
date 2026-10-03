@@ -2,6 +2,7 @@ package com.se.jcb_mng.services;
 
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
@@ -58,6 +59,12 @@ public class JobAssignmentService {
     // READ (All for Admin)
     public List<JobAssignment> getAllAssignments() {
         return jobRepository.findAllByOrderByAssignedDateDesc();
+    }
+
+    public List<Booking> getAvailableBookings() {
+        return bookingRepository.findByStatusOrderByCreatedAtDesc("APPROVED").stream()
+                .filter(booking -> !jobRepository.existsByBookingId(booking.getId()))
+                .collect(Collectors.toList());
     }
 
     // READ (Only for the logged-in Operator)
