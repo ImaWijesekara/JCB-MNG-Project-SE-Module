@@ -32,7 +32,7 @@ public class JobAssignmentController {
     public record AssignRequest(Long bookingId, String operatorUsername) {}
 
     @PostMapping("/assign")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATION_MANAGER', 'DISPATCH_MANAGER')")
     public ResponseEntity<?> assignJob(@RequestBody AssignRequest request) {
         try {
             JobAssignment job = jobService.assignJob(request.bookingId(), request.operatorUsername());
@@ -43,10 +43,22 @@ public class JobAssignmentController {
     }
 
     @GetMapping("/all")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATION_MANAGER', 'DISPATCH_MANAGER')")
     public ResponseEntity<List<JobResponse>> getAllJobs() {
         return ResponseEntity.ok(jobService.getAllAssignments().stream()
                 .map(this::toResponse).collect(Collectors.toList()));
+    }
+
+    @GetMapping("/available-bookings")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATION_MANAGER', 'DISPATCH_MANAGER')")
+    public ResponseEntity<List<BookingOption>> getAvailableBookings() {
+        return ResponseEntity.ok(jobService.getAvailableBookings().stream()
+                .map(booking -> new BookingOption(
+                        booking.getId(),
+                        booking.getMachine().getName() + " (" + booking.getMachine().getModelName() + ")",
+                        booking.getStartDate().toString(),
+                        booking.getEndDate().toString()))
+                .collect(Collectors.toList()));
     }
 
     @GetMapping("/my")
@@ -97,4 +109,7 @@ public class JobAssignmentController {
     }
 
     public record JobResponse(Long id, Long bookingId, String machineDetails, String customerName, String dates, String operatorName, String status) {}
+
+    public record BookingOption(Long id, String machineDetails, String startDate, String endDate) {}
+
 }
