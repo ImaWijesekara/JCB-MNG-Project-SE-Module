@@ -2,6 +2,7 @@ package com.se.jcb_mng.repositories;
 
 import java.util.List;
 import java.util.Optional;
+import java.time.LocalDateTime;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -20,4 +21,7 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     Optional<Payment> findByBookingId(Long bookingId);
 
     boolean existsByBookingIdAndStatus(Long bookingId, String status);
+
+    List<Payment> findByStatusAndPaymentDateGreaterThanEqualAndPaymentDateLessThan(
+            String status, LocalDateTime startDate, LocalDateTime endDate);
 }

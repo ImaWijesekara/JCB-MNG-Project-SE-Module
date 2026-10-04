@@ -15,8 +15,22 @@ export const getEligibleInvoiceBookings = async () => {
     return response.data;
 };
 
-export const createInvoice = async (bookingId) => {
-    const response = await api.post('/invoices/create', { bookingId: Number(bookingId) });
+export const createInvoice = async (bookingId, invoiceDetails) => {
+    const response = await api.post('/invoices/create', {
+        bookingId: Number(bookingId),
+        dueDate: invoiceDetails.dueDate,
+        description: invoiceDetails.description,
+        notes: invoiceDetails.notes,
+    });
+    return response.data;
+};
+
+export const updateInvoice = async (invoiceId, invoiceDetails) => {
+    const response = await api.put(`/invoices/${invoiceId}`, {
+        dueDate: invoiceDetails.dueDate,
+        description: invoiceDetails.description,
+        notes: invoiceDetails.notes,
+    });
     return response.data;
 };
 

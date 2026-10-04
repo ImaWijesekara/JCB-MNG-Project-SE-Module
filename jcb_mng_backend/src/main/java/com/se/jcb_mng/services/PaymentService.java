@@ -109,6 +109,7 @@ public class PaymentService {
             }
             invoice.setStatus("PAID");
             invoiceRepository.save(invoice);
+            payment.setPaymentDate(LocalDateTime.now());
         }
         payment.setStatus(normalizedStatus);
         return paymentRepository.save(payment);

@@ -43,6 +43,15 @@ public class InvoiceService {
 
     @Transactional
     public Invoice createInvoice(Long bookingId) {
+        return createInvoice(
+                bookingId,
+                LocalDate.now().plusDays(30),
+                "Equipment rental for booking #" + bookingId,
+                null);
+    }
+
+    @Transactional
+    public Invoice createInvoice(Long bookingId, LocalDate dueDate, String description, String notes) {
         if (bookingId == null) {
             throw new IllegalArgumentException("Booking is required");
         }
@@ -64,11 +73,28 @@ public class InvoiceService {
         invoice.setCustomerUsername(booking.getUser().getUsername());
         invoice.setAmount(booking.getTotalCost());
         invoice.setIssueDate(LocalDate.now());
+        invoice.setDueDate(validateDueDate(invoice.getIssueDate(), dueDate));
+        invoice.setDescription(validateDescription(description));
+        invoice.setNotes(validateNotes(notes));
         invoice.setStatus("UNPAID");
 
         Invoice savedInvoice = invoiceRepository.save(invoice);
         savedInvoice.setInvoiceNumber(String.format("INV-%d-%06d", savedInvoice.getIssueDate().getYear(), savedInvoice.getId()));
         return invoiceRepository.save(savedInvoice);
+    }
+
+    @Transactional
+    public Invoice updateInvoice(Long invoiceId, LocalDate dueDate, String description, String notes) {
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new IllegalArgumentException("Invoice not found"));
+        if (!"UNPAID".equals(invoice.getStatus())) {
+            throw new IllegalArgumentException("Only unpaid invoices can be edited");
+        }
+
+        invoice.setDueDate(validateDueDate(invoice.getIssueDate(), dueDate));
+        invoice.setDescription(validateDescription(description));
+        invoice.setNotes(validateNotes(notes));
+        return invoiceRepository.save(invoice);
     }
 
     @Transactional
@@ -94,5 +120,33 @@ public class InvoiceService {
         }
         invoice.setStatus("VOID");
         invoiceRepository.save(invoice);
+    }
+
+    private LocalDate validateDueDate(LocalDate issueDate, LocalDate dueDate) {
+        if (dueDate == null) {
+            throw new IllegalArgumentException("Invoice due date is required");
+        }
+        if (dueDate.isBefore(issueDate)) {
+            throw new IllegalArgumentException("Invoice due date cannot be before the issue date");
+        }
+        return dueDate;
+    }
+
+    private String validateDescription(String description) {
+        if (description == null || description.isBlank()) {
+            throw new IllegalArgumentException("Invoice description is required");
+        }
+        String normalized = description.trim();
+        if (normalized.length() > 500) {
+            throw new IllegalArgumentException("Invoice description must be 500 characters or fewer");
+        }
+        return normalized;
+    }
+
+    private String validateNotes(String notes) {
+        if (notes != null && notes.length() > 2000) {
+            throw new IllegalArgumentException("Invoice notes must be 2000 characters or fewer");
+        }
+        return notes == null || notes.isBlank() ? null : notes.trim();
     }
 }

@@ -283,18 +283,25 @@ const PaymentManager = () => {
                                     <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase">Invoice</th>
                                     <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase">Booking</th>
                                     <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase">Issued</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase">Due</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase">Details</th>
                                     <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase">Amount</th>
                                     <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase">Status</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {customerInvoices.length === 0 ? (
-                                    <tr><td colSpan="5" className="px-6 py-8 text-center text-jcb-textMuted">No invoices have been issued yet.</td></tr>
+                                    <tr><td colSpan="7" className="px-6 py-8 text-center text-jcb-textMuted">No invoices have been issued yet.</td></tr>
                                 ) : customerInvoices.map((invoice) => (
                                     <tr key={invoice.id}>
                                         <td className="px-6 py-4 font-bold text-jcb-textMain">{invoice.invoiceNumber}</td>
                                         <td className="px-6 py-4 text-jcb-textMuted">#{invoice.bookingId}</td>
                                         <td className="px-6 py-4 text-jcb-textMuted">{invoice.issueDate}</td>
+                                        <td className="px-6 py-4 text-jcb-textMuted">{invoice.dueDate || '—'}</td>
+                                        <td className="px-6 py-4 whitespace-normal min-w-48 max-w-sm">
+                                            <div className="font-semibold text-jcb-textMain">{invoice.description || 'Equipment rental charges'}</div>
+                                            {invoice.notes && <div className="text-xs text-jcb-textMuted mt-1">{invoice.notes}</div>}
+                                        </td>
                                         <td className="px-6 py-4 font-bold text-jcb-textMain">Rs. {invoice.amount?.toLocaleString()}</td>
                                         <td className="px-6 py-4">
                                             <span className={`px-3 py-1 rounded-full text-xs font-bold border ${invoice.status === 'PAID' ? 'bg-green-50 text-green-700 border-green-200' : invoice.status === 'VOID' ? 'bg-gray-100 text-gray-600 border-gray-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'}`}>

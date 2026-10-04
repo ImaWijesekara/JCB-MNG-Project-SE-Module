@@ -24,4 +24,7 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
             Collection<String> statuses,
             LocalDate endDate,
             LocalDate startDate);
+
+    List<Booking> findByStatusAndEndDateGreaterThanEqualAndEndDateLessThan(
+            String status, LocalDate startDate, LocalDate endDate);
 }

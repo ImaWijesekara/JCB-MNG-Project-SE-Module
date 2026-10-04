@@ -1,5 +1,7 @@
 package com.se.jcb_mng.controllers;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 
 import org.springframework.http.ResponseEntity;
@@ -10,6 +12,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -25,7 +28,8 @@ public class InvoiceController {
 
     private final InvoiceService invoiceService;
 
-    public record InvoiceRequest(Long bookingId) {}
+    public record InvoiceRequest(Long bookingId, String dueDate, String description, String notes) {}
+    public record InvoiceUpdateRequest(String dueDate, String description, String notes) {}
     public record BookingOption(Long id, String machineDetails, String customerName,
                                 String startDate, String endDate, Double totalCost) {}
 
@@ -61,8 +65,23 @@ public class InvoiceController {
             if (request == null) {
                 throw new IllegalArgumentException("Booking is required");
             }
-            return ResponseEntity.ok(invoiceService.createInvoice(request.bookingId()));
-        } catch (IllegalArgumentException e) {
+            return ResponseEntity.ok(invoiceService.createInvoice(
+                    request.bookingId(), parseDate(request.dueDate()), request.description(), request.notes()));
+        } catch (IllegalArgumentException | DateTimeParseException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FINANCE_OFFICER')")
+    public ResponseEntity<?> updateInvoice(@PathVariable Long id, @RequestBody InvoiceUpdateRequest request) {
+        try {
+            if (request == null) {
+                throw new IllegalArgumentException("Invoice details are required");
+            }
+            return ResponseEntity.ok(invoiceService.updateInvoice(
+                    id, parseDate(request.dueDate()), request.description(), request.notes()));
+        } catch (IllegalArgumentException | DateTimeParseException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
@@ -89,5 +108,9 @@ public class InvoiceController {
                 booking.getStartDate().toString(),
                 booking.getEndDate().toString(),
                 booking.getTotalCost());
+    }
+
+    private LocalDate parseDate(String date) {
+        return date == null || date.isBlank() ? null : LocalDate.parse(date);
     }
 }

@@ -7,6 +7,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Column;
 
 @Entity
 @Table(name = "invoices")
@@ -22,7 +23,14 @@ public class Invoice {
     private String customerUsername;
     private Double amount;
     private LocalDate issueDate;
+    private LocalDate dueDate;
     private String status; // UNPAID, PAID, VOID
+
+    @Column(length = 500)
+    private String description;
+
+    @Column(length = 2000)
+    private String notes;
 
     // Constructors
     public Invoice() {}
@@ -49,6 +57,15 @@ public class Invoice {
     public LocalDate getIssueDate() { return issueDate; }
     public void setIssueDate(LocalDate issueDate) { this.issueDate = issueDate; }
 
+    public LocalDate getDueDate() { return dueDate; }
+    public void setDueDate(LocalDate dueDate) { this.dueDate = dueDate; }
+
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
+
+    public String getNotes() { return notes; }
+    public void setNotes(String notes) { this.notes = notes; }
 }
