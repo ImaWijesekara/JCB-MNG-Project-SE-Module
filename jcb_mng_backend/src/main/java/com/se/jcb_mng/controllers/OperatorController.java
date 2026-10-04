@@ -31,8 +31,8 @@ public class OperatorController {
         this.operatorService = operatorService;
     }
 
-    public record ScheduleRequest(Long machineId, String operatorUsername, String description, String serviceDate) {}
-    public record UpdateRequest(Long machineId, String operatorUsername, String description, String serviceDate, String status) {}
+    public record ScheduleRequest(Long machineId, String operatorUsername, String description, String serviceDate, Double cost) {}
+    public record UpdateRequest(Long machineId, String operatorUsername, String description, String serviceDate, String status, Double cost) {}
 
     @PostMapping("/schedule")
     @PreAuthorize("hasAnyRole('ADMIN', 'OPERATION_MANAGER', 'MAINTENANCE_MANAGER', 'OPERATOR')")
@@ -45,9 +45,9 @@ public class OperatorController {
                 OperatorTask task = auth.getAuthorities().stream()
                     .anyMatch(authority -> "ROLE_OPERATOR".equals(authority.getAuthority()))
                     ? operatorService.scheduleMaintenanceForOperator(
-                            request.machineId(), auth.getName(), request.description(), date)
+                            request.machineId(), auth.getName(), request.description(), date, request.cost())
                     : operatorService.scheduleMaintenance(
-                            request.machineId(), request.operatorUsername(), request.description(), date);
+                            request.machineId(), request.operatorUsername(), request.description(), date, request.cost());
             return ResponseEntity.ok(toResponse(task));
         } catch (IllegalArgumentException | DateTimeParseException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
@@ -91,12 +91,20 @@ public class OperatorController {
             LocalDate serviceDate = LocalDate.parse(request.serviceDate());
                 OperatorTask task = auth.getAuthorities().stream()
                     .anyMatch(authority -> "ROLE_OPERATOR".equals(authority.getAuthority()))
+                ? request.cost() == null
                     ? operatorService.updateOperatorMaintenance(
                             taskId, auth.getName(), request.machineId(), request.description(),
                             serviceDate, request.status())
+                    : operatorService.updateOperatorMaintenance(
+                            taskId, auth.getName(), request.machineId(), request.description(),
+                            serviceDate, request.status(), request.cost())
+                : request.cost() == null
+                    ? operatorService.updateMaintenance(
+                            taskId, request.machineId(), request.operatorUsername(), request.description(),
+                            serviceDate, request.status())
                     : operatorService.updateMaintenance(
                             taskId, request.machineId(), request.operatorUsername(), request.description(),
-                            serviceDate, request.status());
+                            serviceDate, request.status(), request.cost());
             return ResponseEntity.ok(toResponse(task));
         } catch (IllegalArgumentException | DateTimeParseException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
@@ -130,7 +138,8 @@ public class OperatorController {
                 task.getOperator().getUsername(),
                 task.getDescription(),
                 task.getServiceDate().toString(),
-                task.getStatus()
+                task.getStatus(),
+                task.getCost() == null ? 0.0 : task.getCost()
         );
     }
 
@@ -142,5 +151,6 @@ public class OperatorController {
             String operatorName,
             String description,
             String serviceDate,
-            String status) {}
+            String status,
+            Double cost) {}
 }

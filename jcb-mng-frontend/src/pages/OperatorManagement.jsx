@@ -32,6 +32,7 @@ const OperatorManagement = () => {
     const [description, setDescription] = useState('');
     const [serviceDate, setServiceDate] = useState('');
     const [taskStatus, setTaskStatus] = useState('SCHEDULED');
+    const [cost, setCost] = useState('0');
 
     const loadData = useCallback(async () => {
         setIsLoading(true);
@@ -58,7 +59,10 @@ const OperatorManagement = () => {
     }, [isManager, isOperator]);
 
     useEffect(() => {
-        loadData();
+        const timeoutId = window.setTimeout(() => {
+            void loadData();
+        }, 0);
+        return () => window.clearTimeout(timeoutId);
     }, [loadData]);
 
     const filteredTasks = useMemo(() => {
@@ -87,6 +91,7 @@ const OperatorManagement = () => {
         if (!operatorUsername) errors.operatorUsername = "Technician required.";
         if (!serviceDate) errors.serviceDate = "Date is required.";
         if (description.trim().length < 5) errors.description = "Provide a detailed task note.";
+        if (cost === '' || !Number.isFinite(Number(cost)) || Number(cost) < 0) errors.cost = "Enter a non-negative maintenance cost.";
         
         setFieldErrors(errors);
         return Object.keys(errors).length === 0;
@@ -101,12 +106,12 @@ const OperatorManagement = () => {
         
         setIsSaving(true);
         try {
-            const task = { machineId: Number(machineId), operatorUsername, description: description.trim(), serviceDate, status: taskStatus };
+            const task = { machineId: Number(machineId), operatorUsername, description: description.trim(), serviceDate, status: taskStatus, cost: Number(cost) };
             if (editingTaskId) {
                 await updateOperatorTask(editingTaskId, task);
                 setSuccess('Task notes updated successfully!');
             } else {
-                await scheduleOperatorTask(machineId, operatorUsername, description, serviceDate);
+                await scheduleOperatorTask(machineId, operatorUsername, description, serviceDate, cost);
                 setSuccess(isOperator ? 'Field task reported successfully!' : 'New task dispatched!');
             }
             handleCancelEdit();
@@ -126,6 +131,7 @@ const OperatorManagement = () => {
         setDescription(task.description);
         setServiceDate(task.serviceDate);
         setTaskStatus(task.status);
+        setCost(String(task.cost ?? 0));
         setError('');
         setSuccess('');
         setFieldErrors({});
@@ -139,6 +145,7 @@ const OperatorManagement = () => {
         setOperatorUsername(isOperator ? user.username : ''); // Reset back to themselves if operator
         setDescription('');
         setServiceDate('');
+        setCost('0');
         setError('');
         setFieldErrors({});
     };
@@ -173,9 +180,7 @@ const OperatorManagement = () => {
         }
     };
 
-    const totalTasks = filteredTasks.length;
     const pendingTasks = filteredTasks.filter(t => t.status === 'SCHEDULED' || t.status === 'IN_PROGRESS').length;
-    const completedTasks = filteredTasks.filter(t => t.status === 'COMPLETED').length;
 
     return (
         <div className="max-w-6xl mx-auto pb-12">
@@ -253,7 +258,7 @@ const OperatorManagement = () => {
 
                         <div className="md:col-span-1">
                             <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">Task Date</label>
-                            <input type="date" value={serviceDate} min={new Date().toISOString().split('T')[0]} onChange={handleInputChange(setServiceDate, 'serviceDate')} 
+                            <input type="date" value={serviceDate} min={editingTaskId ? undefined : new Date().toISOString().split('T')[0]} onChange={handleInputChange(setServiceDate, 'serviceDate')}
                                 className={`w-full px-4 py-2.5 bg-white border ${fieldErrors.serviceDate ? 'border-red-500' : 'border-jcb-border'} rounded-lg text-sm focus:ring-2 focus:ring-jcb-brand/50`} />
                         </div>
 
@@ -262,6 +267,21 @@ const OperatorManagement = () => {
                             <input type="text" value={description} onChange={handleInputChange(setDescription, 'description')} maxLength="1000" placeholder="E.g., Hydraulic pipe burst. Need replacement parts."
                                 className={`w-full px-4 py-2.5 bg-white border ${fieldErrors.description ? 'border-red-500' : 'border-jcb-border'} rounded-lg text-sm focus:ring-2 focus:ring-jcb-brand/50`} />
                             {fieldErrors.description && <p className="mt-1 text-xs font-bold text-red-500">{fieldErrors.description}</p>}
+                        </div>
+
+                        <div className="md:col-span-1">
+                            <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">Maintenance Cost (Rs.)</label>
+                            <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={cost}
+                                onChange={handleInputChange(setCost, 'cost')}
+                                placeholder="0.00"
+                                className={`w-full px-4 py-2.5 bg-white border ${fieldErrors.cost ? 'border-red-500' : 'border-jcb-border'} rounded-lg text-sm focus:ring-2 focus:ring-jcb-brand/50`}
+                            />
+                            <p className="mt-1 text-xs text-jcb-textMuted">Completed maintenance costs are included in financial reports.</p>
+                            {fieldErrors.cost && <p className="mt-1 text-xs font-bold text-red-500">{fieldErrors.cost}</p>}
                         </div>
 
                         <div className="md:col-span-1 pt-6">
@@ -282,18 +302,20 @@ const OperatorManagement = () => {
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Ticket ID</th>
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Machine</th>
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Details</th>
+                                <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Maintenance Cost</th>
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Status</th>
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {isLoading ? (
-                                <tr><td colSpan="5" className="text-center py-8 text-jcb-textMuted animate-pulse">Loading task logs...</td></tr>
+                                <tr><td colSpan="6" className="text-center py-8 text-jcb-textMuted animate-pulse">Loading task logs...</td></tr>
                             ) : filteredTasks.map((task) => (
                                 <tr key={task.id} className="hover:bg-blue-50/30 transition-colors group">
                                     <td className="px-6 py-4 text-jcb-textMuted font-mono">#{task.id}</td>
                                     <td className="px-6 py-4 font-bold text-jcb-textMain">{task.machineDetails}</td>
                                     <td className="px-6 py-4 text-jcb-textMuted max-w-xs truncate" title={task.description}>{task.description}</td>
+                                    <td className="px-6 py-4 text-jcb-textMuted">Rs. {Number(task.cost || 0).toLocaleString()}</td>
                                     <td className="px-6 py-4">
                                         <span className={`px-3 py-1 rounded-full text-xs font-bold border ${task.status === 'COMPLETED' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'}`}>
                                             {task.status}

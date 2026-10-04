@@ -36,6 +36,8 @@ public class OperatorTask {
     @Column(nullable = false)
     private String status = "SCHEDULED"; // SCHEDULED, COMPLETED
 
+    private Double cost = 0.0;
+
     public OperatorTask() {}
 
     // Getters and Setters
@@ -56,4 +58,7 @@ public class OperatorTask {
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+
+    public Double getCost() { return cost; }
+    public void setCost(Double cost) { this.cost = cost; }
 }

@@ -1,5 +1,6 @@
 package com.se.jcb_mng.repositories;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -11,4 +12,6 @@ public interface OperatorTaskRepository extends JpaRepository<OperatorTask, Long
     List<OperatorTask> findByOperatorUsername(String username);
     List<OperatorTask> findByMachine_IdAndIdNot(Long machineId, Long taskId);
     boolean existsByMachine_Id(Long machineId);
+    List<OperatorTask> findByStatusAndServiceDateGreaterThanEqualAndServiceDateLessThan(
+            String status, LocalDate startDate, LocalDate endDate);
 }

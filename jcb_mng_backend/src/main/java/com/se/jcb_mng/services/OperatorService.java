@@ -32,6 +32,11 @@ public class OperatorService {
     }
 
     public OperatorTask scheduleMaintenance(Long machineId, String operatorUsername, String description, LocalDate serviceDate) {
+        return scheduleMaintenance(machineId, operatorUsername, description, serviceDate, 0.0);
+    }
+
+    public OperatorTask scheduleMaintenance(Long machineId, String operatorUsername, String description,
+            LocalDate serviceDate, Double cost) {
         if (machineId == null) {
             throw new IllegalArgumentException("Machine is required");
         }
@@ -47,6 +52,7 @@ public class OperatorService {
         if (serviceDate == null || serviceDate.isBefore(LocalDate.now())) {
             throw new IllegalArgumentException("Service date cannot be in the past");
         }
+        validateCost(cost);
 
         Machine machine = machineRepository.findById(machineId)
                 .orElseThrow(() -> new IllegalArgumentException("Machine not found"));
@@ -63,6 +69,7 @@ public class OperatorService {
         task.setDescription(description.trim());
         task.setServiceDate(serviceDate);
         task.setStatus("SCHEDULED");
+        task.setCost(cost);
 
         // Optional: Automatically update the machine's status to MAINTENANCE
         machine.setStatus("MAINTENANCE");
@@ -78,6 +85,12 @@ public class OperatorService {
         return scheduleMaintenance(machineId, username, description, serviceDate);
     }
 
+    public OperatorTask scheduleMaintenanceForOperator(Long machineId, String username, String description,
+            LocalDate serviceDate, Double cost) {
+        requireAssignedMachine(machineId, username);
+        return scheduleMaintenance(machineId, username, description, serviceDate, cost);
+    }
+
     public List<OperatorTask> getAllTasks() {
         return operatorTaskRepository.findAll();
     }
@@ -88,11 +101,23 @@ public class OperatorService {
 
     public OperatorTask updateMaintenance(Long taskId, Long machineId, String operatorUsername,
                                               String description, LocalDate serviceDate, String status) {
-        validateSchedule(machineId, operatorUsername, description, serviceDate);
-        String normalizedStatus = normalizeTaskStatus(status);
-
         OperatorTask task = operatorTaskRepository.findById(taskId)
                 .orElseThrow(() -> new IllegalArgumentException("Task not found"));
+        return updateMaintenance(taskId, machineId, operatorUsername, description, serviceDate, status,
+                task.getCost() == null ? 0.0 : task.getCost());
+    }
+
+    public OperatorTask updateMaintenance(Long taskId, Long machineId, String operatorUsername,
+            String description, LocalDate serviceDate, String status, Double cost) {
+        OperatorTask task = operatorTaskRepository.findById(taskId)
+                .orElseThrow(() -> new IllegalArgumentException("Task not found"));
+        validateSchedule(machineId, operatorUsername, description, serviceDate);
+        if (serviceDate.isBefore(LocalDate.now()) && !serviceDate.equals(task.getServiceDate())) {
+            throw new IllegalArgumentException("Service date cannot be changed to a past date");
+        }
+        validateCost(cost);
+        String normalizedStatus = normalizeTaskStatus(status);
+
         Machine machine = machineRepository.findById(machineId)
                 .orElseThrow(() -> new IllegalArgumentException("Machine not found"));
         User operator = findOperator(operatorUsername);
@@ -102,6 +127,7 @@ public class OperatorService {
         task.setDescription(description.trim());
         task.setServiceDate(serviceDate);
         task.setStatus(normalizedStatus);
+        task.setCost(cost);
         updateMachineState(machine, normalizedStatus);
 
         return operatorTaskRepository.save(task);
@@ -110,8 +136,15 @@ public class OperatorService {
     public OperatorTask updateOperatorMaintenance(Long taskId, String username, Long machineId,
                                                       String description, LocalDate serviceDate, String status) {
         OperatorTask task = findOperatorTask(taskId, username);
+        return updateOperatorMaintenance(taskId, username, machineId, description, serviceDate, status,
+                task.getCost() == null ? 0.0 : task.getCost());
+    }
+
+    public OperatorTask updateOperatorMaintenance(Long taskId, String username, Long machineId,
+            String description, LocalDate serviceDate, String status, Double cost) {
+        OperatorTask task = findOperatorTask(taskId, username);
         requireAssignedMachine(machineId, username);
-        return updateMaintenance(task.getId(), machineId, username, description, serviceDate, status);
+        return updateMaintenance(task.getId(), machineId, username, description, serviceDate, status, cost);
     }
 
     public void deleteMaintenance(Long taskId) {
@@ -161,6 +194,7 @@ public class OperatorService {
         if (machineId == null) {
             throw new IllegalArgumentException("Machine is required");
         }
+
         if (operatorUsername == null || operatorUsername.isBlank()) {
             throw new IllegalArgumentException("Operator is required");
         }
@@ -170,8 +204,14 @@ public class OperatorService {
         if (description.trim().length() > 1000) {
             throw new IllegalArgumentException("Description must not exceed 1000 characters");
         }
-        if (serviceDate == null || serviceDate.isBefore(LocalDate.now())) {
-            throw new IllegalArgumentException("Service date cannot be in the past");
+        if (serviceDate == null) {
+            throw new IllegalArgumentException("Service date is required");
+        }
+    }
+
+    private void validateCost(Double cost) {
+        if (cost == null || !Double.isFinite(cost) || cost < 0) {
+            throw new IllegalArgumentException("Maintenance cost must be a non-negative amount");
         }
     }
 

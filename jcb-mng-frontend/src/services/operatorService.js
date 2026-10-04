@@ -1,11 +1,12 @@
 import api from './api';
 
-export const scheduleOperatorTask = async (machineId, operatorUsername, description, serviceDate) => {
+export const scheduleOperatorTask = async (machineId, operatorUsername, description, serviceDate, cost) => {
     const response = await api.post('/maintenance/schedule', {
         machineId: Number(machineId),
         operatorUsername,
         description,
         serviceDate,
+        cost: Number(cost),
     });
     return response.data;
 };
