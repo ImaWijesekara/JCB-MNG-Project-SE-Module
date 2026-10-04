@@ -1,7 +1,14 @@
 import { useState, useEffect, useContext, useCallback } from 'react';
 import { AuthContext } from '../context/AuthContext';
-import { assignJob, getAllJobs, getAvailableBookings, getMyJobs, updateJobStatus, deleteJob } from '../services/jobService';
+import { assignJob, getAllJobs, getAvailableBookings, getMyJobs, updateJobAssignment, updateJobStatus, deleteJob } from '../services/jobService';
 import { getOperators } from '../services/userService';
+
+const getTodayDate = () => {
+    const today = new Date();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${today.getFullYear()}-${month}-${day}`;
+};
 
 const JobManager = () => {
     const { user } = useContext(AuthContext);
@@ -18,13 +25,19 @@ const JobManager = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [processingId, setProcessingId] = useState(null);
     
-    // Form State for Dispatch/Admin
+    // Assignment form state for managers
     const [bookingId, setBookingId] = useState('');
     const [operatorUsername, setOperatorUsername] = useState('');
+    const [assignedDate, setAssignedDate] = useState(getTodayDate());
+    const [status, setStatus] = useState('ASSIGNED');
+    const [description, setDescription] = useState('');
+    const [priority, setPriority] = useState('MEDIUM');
+    const [notes, setNotes] = useState('');
+    const [editingJobId, setEditingJobId] = useState(null);
 
     const canManageJobs = ['ADMIN', 'OPERATION_MANAGER', 'DISPATCH_MANAGER'].includes(user?.role);
-    const isAdmin = user?.role === 'ADMIN';
     const isOperator = user?.role === 'OPERATOR';
+    const editingJob = jobs.find((job) => job.id === editingJobId);
 
     const fetchData = useCallback(async () => {
         if (canManageJobs) {
@@ -76,7 +89,31 @@ const JobManager = () => {
         };
     }, [fetchData]);
 
-    const handleAssign = async (e) => {
+    const resetForm = () => {
+        setBookingId('');
+        setOperatorUsername('');
+        setAssignedDate(getTodayDate());
+        setStatus('ASSIGNED');
+        setDescription('');
+        setPriority('MEDIUM');
+        setNotes('');
+        setEditingJobId(null);
+    };
+
+    const handleEdit = (job) => {
+        setEditingJobId(job.id);
+        setBookingId(String(job.bookingId));
+        setOperatorUsername(job.operatorName || job.operatorUsername);
+        setAssignedDate(job.assignedDate || getTodayDate());
+        setStatus(job.status);
+        setDescription(job.description || '');
+        setPriority(job.priority || 'MEDIUM');
+        setNotes(job.notes || '');
+        setError('');
+        setSuccess('');
+    };
+
+    const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
         setSuccess('');
@@ -88,14 +125,19 @@ const JobManager = () => {
         
         setIsSubmitting(true);
         try {
-            await assignJob(bookingId, operatorUsername);
-            setBookingId('');
-            setOperatorUsername('');
-            setSuccess(`Operator successfully assigned to Booking #${bookingId}!`);
+            const assignment = { bookingId, operatorUsername, assignedDate, status, description, priority, notes };
+            if (editingJobId) {
+                await updateJobAssignment(editingJobId, assignment);
+                setSuccess(`Job #${editingJobId} updated successfully.`);
+            } else {
+                await assignJob(bookingId, operatorUsername, assignedDate, status, description, priority, notes);
+                setSuccess(`Operator successfully assigned to Booking #${bookingId}!`);
+            }
+            resetForm();
             await loadData();
             setTimeout(() => setSuccess(''), 4000);
         } catch (err) {
-            setError(err.response?.data || "Failed to assign operator.");
+            setError(err.response?.data || (editingJobId ? 'Failed to update job assignment.' : 'Failed to assign operator.'));
         } finally {
             setIsSubmitting(false);
         }
@@ -120,9 +162,11 @@ const JobManager = () => {
     const handleDelete = async (id) => {
         if (!window.confirm("Are you sure you want to completely remove this job assignment?")) return;
         setError('');
+        setSuccess('');
         try {
             await deleteJob(id);
-            setJobs((current) => current.filter(j => j.id !== id));
+            if (editingJobId === id) resetForm();
+            await loadData();
             setSuccess('Job assignment removed.');
             setTimeout(() => setSuccess(''), 3000);
         } catch (err) {
@@ -154,7 +198,7 @@ const JobManager = () => {
                         {canManageJobs ? 'Operator Job Assignments' : 'My Active Jobs'}
                     </h2>
                     <p className="text-sm text-jcb-textMuted mt-1.5 font-medium">
-                        {canManageJobs ? 'Assign operators to approved, unassigned rental bookings.' : 'View your assigned machines and update job statuses.'}
+                        {canManageJobs ? 'Create, update, and manage operator assignments for approved rental bookings.' : 'View your assigned machines and update job statuses.'}
                     </p>
                 </div>
                 <div className="mt-4 md:mt-0 flex items-center gap-3">
@@ -187,19 +231,26 @@ const JobManager = () => {
                 </div>
             )}
 
-            {/* DISPATCH ASSIGNMENT FORM */}
+            {/* JOB ASSIGNMENT CREATE / UPDATE FORM */}
             {canManageJobs && (
                 <div className="bg-white border border-jcb-border shadow-sm rounded-xl overflow-hidden mb-10 transition-all">
                     <div className="bg-gray-50 px-6 py-4 border-b border-jcb-border flex items-center gap-2">
                         <div className="p-1.5 rounded-md bg-jcb-brand/20 text-yellow-700">
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
                         </div>
-                        <h3 className="text-base font-bold text-jcb-textMain">Assign Operator</h3>
+                        <h3 className="text-base font-bold text-jcb-textMain">
+                            {editingJobId ? `Update Job Assignment #${editingJobId}` : 'Create Job Assignment'}
+                        </h3>
+                        {editingJobId && (
+                            <button type="button" onClick={resetForm} className="ml-auto text-sm font-semibold text-gray-500 hover:text-gray-800 bg-white border border-gray-200 px-3 py-1.5 rounded-md shadow-sm">
+                                Cancel
+                            </button>
+                        )}
                     </div>
                     
-                    <form onSubmit={handleAssign} className="p-6">
-                        <div className="grid grid-cols-1 md:grid-cols-5 gap-5 items-end">
-                            <div className="md:col-span-2">
+                    <form onSubmit={handleSubmit} className="p-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-5 items-end">
+                            <div className="xl:col-span-2">
                                 <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">Approved Booking</label>
                                 <select 
                                     value={bookingId} 
@@ -207,14 +258,17 @@ const JobManager = () => {
                                     required
                                     className="w-full px-4 py-2.5 bg-white border border-jcb-border rounded-lg text-sm text-jcb-textMain font-medium focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 transition-all appearance-none cursor-pointer"
                                 >
-                                    <option value="">-- Choose Pending Booking --</option>
+                                    <option value="">-- Choose Approved Booking --</option>
+                                    {editingJob && !approvedBookings.some((booking) => String(booking.id) === String(editingJob.bookingId)) && (
+                                        <option value={editingJob.bookingId}>Ticket #{editingJob.bookingId} - Current booking</option>
+                                    )}
                                     {approvedBookings.map(b => (
                                         <option key={b.id} value={b.id}>Ticket #{b.id} - {b.machineDetails} (Starts: {b.startDate})</option>
                                     ))}
                                 </select>
-                                {approvedBookings.length === 0 && !loading && <p className="mt-1.5 text-xs text-jcb-textMuted font-medium">No approved, unassigned bookings are available.</p>}
+                                {approvedBookings.length === 0 && !editingJobId && !loading && <p className="mt-1.5 text-xs text-jcb-textMuted font-medium">No approved, unassigned bookings are available.</p>}
                             </div>
-                            <div className="md:col-span-2">
+                            <div className="xl:col-span-1">
                                 <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">Select Operator</label>
                                 <select 
                                     value={operatorUsername} 
@@ -228,11 +282,78 @@ const JobManager = () => {
                                     ))}
                                 </select>
                             </div>
-                            <div className="md:col-span-1 pt-2">
-                                <button type="submit" disabled={isSubmitting || approvedBookings.length === 0 || operators.length === 0} className="w-full bg-jcb-brand text-black font-bold py-2.5 px-4 rounded-lg hover:bg-yellow-400 transition shadow-sm disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                            <div>
+                                <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">Assigned Date</label>
+                                <input
+                                    type="date"
+                                    value={assignedDate}
+                                    onChange={(e) => setAssignedDate(e.target.value)}
+                                    required
+                                    className="w-full px-4 py-2.5 bg-white border border-jcb-border rounded-lg text-sm text-jcb-textMain font-medium focus:outline-none focus:ring-2 focus:ring-jcb-brand/50"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">Job Status</label>
+                                <select
+                                    value={status}
+                                    onChange={(e) => setStatus(e.target.value)}
+                                    required
+                                    className="w-full px-4 py-2.5 bg-white border border-jcb-border rounded-lg text-sm text-jcb-textMain font-medium focus:outline-none focus:ring-2 focus:ring-jcb-brand/50"
+                                >
+                                    <option value="ASSIGNED">Assigned</option>
+                                    <option value="IN_PROGRESS">In Progress</option>
+                                    <option value="COMPLETED">Completed</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">Priority</label>
+                                <select
+                                    value={priority}
+                                    onChange={(e) => setPriority(e.target.value)}
+                                    required
+                                    className="w-full px-4 py-2.5 bg-white border border-jcb-border rounded-lg text-sm text-jcb-textMain font-medium focus:outline-none focus:ring-2 focus:ring-jcb-brand/50"
+                                >
+                                    <option value="LOW">Low</option>
+                                    <option value="MEDIUM">Medium</option>
+                                    <option value="HIGH">High</option>
+                                </select>
+                            </div>
+                            <div className="sm:col-span-2 xl:col-span-3">
+                                <label htmlFor="job-description" className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">
+                                    Job Description <span className="text-red-500">*</span>
+                                </label>
+                                <textarea
+                                    id="job-description"
+                                    value={description}
+                                    onChange={(e) => setDescription(e.target.value)}
+                                    required
+                                    maxLength={1000}
+                                    rows={3}
+                                    placeholder="Describe the work the operator needs to complete"
+                                    className="w-full px-4 py-2.5 bg-white border border-jcb-border rounded-lg text-sm text-jcb-textMain font-medium focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 resize-y"
+                                />
+                                <p className="mt-1 text-right text-xs text-jcb-textMuted">{description.length}/1000</p>
+                            </div>
+                            <div className="sm:col-span-2 xl:col-span-3">
+                                <label htmlFor="job-notes" className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5">
+                                    Additional Notes
+                                </label>
+                                <textarea
+                                    id="job-notes"
+                                    value={notes}
+                                    onChange={(e) => setNotes(e.target.value)}
+                                    maxLength={2000}
+                                    rows={3}
+                                    placeholder="Add instructions or information for the operator"
+                                    className="w-full px-4 py-2.5 bg-white border border-jcb-border rounded-lg text-sm text-jcb-textMain font-medium focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 resize-y"
+                                />
+                                <p className="mt-1 text-right text-xs text-jcb-textMuted">{notes.length}/2000</p>
+                            </div>
+                            <div className="sm:col-span-2 xl:col-span-6 flex justify-end gap-3 pt-1">
+                                <button type="submit" disabled={isSubmitting || (!editingJobId && approvedBookings.length === 0) || operators.length === 0} className="min-w-36 bg-jcb-brand text-black font-bold py-2.5 px-4 rounded-lg hover:bg-yellow-400 transition shadow-sm disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2">
                                     {isSubmitting ? (
-                                        <><svg className="animate-spin h-4 w-4 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Sending...</>
-                                    ) : 'Assign Job'}
+                                        <><svg className="animate-spin h-4 w-4 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Saving...</>
+                                    ) : editingJobId ? 'Update Assignment' : 'Assign Job'}
                                 </button>
                             </div>
                         </div>
@@ -249,7 +370,9 @@ const JobManager = () => {
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Job ID</th>
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Ticket #</th>
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Machine Details</th>
-                                <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Schedule</th>
+                                <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Rental Period</th>
+                                <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Assigned Date</th>
+                                <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Assignment Details</th>
                                 {canManageJobs && <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Assigned Operator</th>}
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Status</th>
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider text-right">Actions</th>
@@ -258,7 +381,7 @@ const JobManager = () => {
                         <tbody className="divide-y divide-gray-100">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={canManageJobs ? 7 : 6} className="px-6 py-12 text-center text-jcb-textMuted">
+                                    <td colSpan={canManageJobs ? 9 : 8} className="px-6 py-12 text-center text-jcb-textMuted">
                                         <div className="flex flex-col items-center justify-center">
                                             <svg className="animate-spin h-8 w-8 text-gray-300 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                                             <span className="font-medium">Loading dispatch ledger...</span>
@@ -267,7 +390,7 @@ const JobManager = () => {
                                 </tr>
                             ) : jobs.length === 0 ? (
                                 <tr>
-                                    <td colSpan={canManageJobs ? 7 : 6} className="px-6 py-12 text-center text-jcb-textMuted">
+                                    <td colSpan={canManageJobs ? 9 : 8} className="px-6 py-12 text-center text-jcb-textMuted">
                                         <div className="flex flex-col items-center justify-center">
                                             <div className="bg-gray-50 p-3 rounded-full mb-3">
                                                 <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
@@ -282,6 +405,22 @@ const JobManager = () => {
                                     <td className="px-6 py-4 text-jcb-textMuted font-mono">#{j.bookingId}</td>
                                     <td className="px-6 py-4 text-jcb-textMain font-medium truncate max-w-xs">{j.machineDetails}</td>
                                     <td className="px-6 py-4 text-jcb-textMuted">{j.dates || j.scheduleDate}</td>
+                                    <td className="px-6 py-4 text-jcb-textMuted">{j.assignedDate || '—'}</td>
+                                    <td className="px-6 py-4 whitespace-normal min-w-60 max-w-sm">
+                                        <div className="flex flex-col items-start gap-1.5">
+                                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                                j.priority === 'HIGH'
+                                                    ? 'bg-red-50 text-red-700 border-red-200'
+                                                    : j.priority === 'LOW'
+                                                        ? 'bg-gray-50 text-gray-600 border-gray-200'
+                                                        : 'bg-orange-50 text-orange-700 border-orange-200'
+                                            }`}>
+                                                {j.priority || 'MEDIUM'} PRIORITY
+                                            </span>
+                                            <span className="font-semibold text-jcb-textMain break-words">{j.description || 'No description provided'}</span>
+                                            <span className="text-xs text-jcb-textMuted break-words">{j.notes || 'No additional notes'}</span>
+                                        </div>
+                                    </td>
                                     {canManageJobs && <td className="px-6 py-4 font-bold text-jcb-textMain">{j.operatorName || j.operatorUsername}</td>}
                                     <td className="px-6 py-4">
                                         <span className={`px-3 py-1 rounded-full text-xs font-bold border ${getStatusStyle(j.status)}`}>
@@ -308,11 +447,25 @@ const JobManager = () => {
                                                     </button>
                                                 )}
 
-                                                {/* ADMIN/DISPATCH ACTIONS (Ghost delete button) */}
-                                                {isAdmin && (
-                                                    <button onClick={() => handleDelete(j.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition opacity-0 group-hover:opacity-100" title="Delete Job">
-                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                                    </button>
+                                                {canManageJobs && (
+                                                    <>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleEdit(j)}
+                                                            className="px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-md text-xs font-bold transition"
+                                                            title="Edit job assignment"
+                                                        >
+                                                            Edit
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleDelete(j.id)}
+                                                            className="px-3 py-1.5 bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 rounded-md text-xs font-bold transition"
+                                                            title="Delete job assignment"
+                                                        >
+                                                            Delete
+                                                        </button>
+                                                    </>
                                                 )}
                                             </div>
                                         )}
