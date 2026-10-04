@@ -1,5 +1,7 @@
 package com.se.jcb_mng.controllers;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -29,15 +31,54 @@ public class JobAssignmentController {
         this.jobService = jobService;
     }
 
-    public record AssignRequest(Long bookingId, String operatorUsername) {}
+    public record AssignmentRequest(
+            Long bookingId,
+            String operatorUsername,
+            String assignedDate,
+            String status,
+            String description,
+            String priority,
+            String notes) {}
 
     @PostMapping("/assign")
     @PreAuthorize("hasAnyRole('ADMIN', 'OPERATION_MANAGER', 'DISPATCH_MANAGER')")
-    public ResponseEntity<?> assignJob(@RequestBody AssignRequest request) {
+    public ResponseEntity<?> assignJob(@RequestBody AssignmentRequest request) {
         try {
-            JobAssignment job = jobService.assignJob(request.bookingId(), request.operatorUsername());
+            if (request == null) {
+                throw new IllegalArgumentException("Assignment details are required");
+            }
+            JobAssignment job = jobService.assignJob(
+                    request.bookingId(),
+                    request.operatorUsername(),
+                    parseDate(request.assignedDate()),
+                    request.status(),
+                    request.description(),
+                    request.priority(),
+                    request.notes());
             return ResponseEntity.ok(toResponse(job));
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException | DateTimeParseException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATION_MANAGER', 'DISPATCH_MANAGER')")
+    public ResponseEntity<?> updateAssignment(@PathVariable Long id, @RequestBody AssignmentRequest request) {
+        try {
+            if (request == null) {
+                throw new IllegalArgumentException("Assignment details are required");
+            }
+            JobAssignment job = jobService.updateAssignment(
+                    id,
+                    request.bookingId(),
+                    request.operatorUsername(),
+                    parseDate(request.assignedDate()),
+                    request.status(),
+                    request.description(),
+                    request.priority(),
+                    request.notes());
+            return ResponseEntity.ok(toResponse(job));
+        } catch (IllegalArgumentException | DateTimeParseException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
@@ -69,7 +110,7 @@ public class JobAssignmentController {
     }
 
     @PutMapping("/{id}/status")
-    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATION_MANAGER', 'DISPATCH_MANAGER', 'OPERATOR')")
         public ResponseEntity<?> updateStatus(Authentication auth, @PathVariable Long id, @RequestParam String status) {
         try {
             String role = auth.getAuthorities().stream()
@@ -84,7 +125,7 @@ public class JobAssignmentController {
     }
 
     @DeleteMapping("/delete/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATION_MANAGER', 'DISPATCH_MANAGER')")
     public ResponseEntity<?> deleteAssignment(@PathVariable Long id) {
         try {
             jobService.deleteAssignment(id);
@@ -104,11 +145,30 @@ public class JobAssignmentController {
                     : job.getBooking().getUser().getUsername(),
                 job.getBooking().getStartDate() + " to " + job.getBooking().getEndDate(),
                 job.getOperator().getUsername(),
-                job.getStatus()
+                job.getStatus(),
+                job.getAssignedDate().toString(),
+                job.getDescription(),
+                job.getPriority(),
+                job.getNotes()
         );
     }
 
-    public record JobResponse(Long id, Long bookingId, String machineDetails, String customerName, String dates, String operatorName, String status) {}
+    private LocalDate parseDate(String assignedDate) {
+        return assignedDate == null || assignedDate.isBlank() ? null : LocalDate.parse(assignedDate);
+    }
+
+    public record JobResponse(
+            Long id,
+            Long bookingId,
+            String machineDetails,
+            String customerName,
+            String dates,
+            String operatorName,
+            String status,
+            String assignedDate,
+            String description,
+            String priority,
+            String notes) {}
 
     public record BookingOption(Long id, String machineDetails, String startDate, String endDate) {}
 

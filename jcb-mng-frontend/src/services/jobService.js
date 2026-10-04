@@ -1,7 +1,27 @@
 import api from './api';
 
-export const assignJob = async (bookingId, operatorUsername) => {
-    const response = await api.post('/jobs/assign', { bookingId: Number(bookingId), operatorUsername });
+export const assignJob = async (bookingId, operatorUsername, assignedDate, status, description, priority, notes) => {
+    const response = await api.post('/jobs/assign', {
+        bookingId: Number(bookingId),
+        operatorUsername,
+        assignedDate,
+        status,
+        description,
+        priority,
+        notes,
+    });
+    return response.data;
+};
+export const updateJobAssignment = async (id, assignment) => {
+    const response = await api.put(`/jobs/${id}`, {
+        bookingId: Number(assignment.bookingId),
+        operatorUsername: assignment.operatorUsername,
+        assignedDate: assignment.assignedDate,
+        status: assignment.status,
+        description: assignment.description,
+        priority: assignment.priority,
+        notes: assignment.notes,
+    });
     return response.data;
 };
 export const getAllJobs = async () => {
