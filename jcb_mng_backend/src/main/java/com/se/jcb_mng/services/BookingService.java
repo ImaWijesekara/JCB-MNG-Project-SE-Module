@@ -6,12 +6,15 @@ import java.util.List;
 import java.util.Set;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.se.jcb_mng.entities.Booking;
 import com.se.jcb_mng.entities.Machine;
 import com.se.jcb_mng.entities.User;
 import com.se.jcb_mng.repositories.BookingRepository;
+import com.se.jcb_mng.repositories.InvoiceRepository;
 import com.se.jcb_mng.repositories.MachineRepository;
+import com.se.jcb_mng.repositories.PaymentRepository;
 import com.se.jcb_mng.repositories.UserRepository;
 
 @Service
@@ -20,11 +23,19 @@ public class BookingService {
     private final BookingRepository bookingRepository;
     private final MachineRepository machineRepository;
     private final UserRepository userRepository;
+    private final InvoiceService invoiceService;
+    private final InvoiceRepository invoiceRepository;
+    private final PaymentRepository paymentRepository;
 
-    public BookingService(BookingRepository bookingRepository, MachineRepository machineRepository, UserRepository userRepository) {
+    public BookingService(BookingRepository bookingRepository, MachineRepository machineRepository,
+                          UserRepository userRepository, InvoiceService invoiceService,
+                          InvoiceRepository invoiceRepository, PaymentRepository paymentRepository) {
         this.bookingRepository = bookingRepository;
         this.machineRepository = machineRepository;
         this.userRepository = userRepository;
+        this.invoiceService = invoiceService;
+        this.invoiceRepository = invoiceRepository;
+        this.paymentRepository = paymentRepository;
     }
 
     public Booking createBooking(String username, Long machineId, LocalDate startDate, LocalDate endDate) {
@@ -74,6 +85,7 @@ public class BookingService {
         return bookingRepository.findByUserUsernameOrderByCreatedAtDesc(username);
     }
 
+    @Transactional
     public Booking updateBookingStatus(Long bookingId, String username, String role, String status) {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new IllegalArgumentException("Booking not found"));
@@ -88,9 +100,17 @@ public class BookingService {
                     throw new IllegalArgumentException("Customers can only cancel their own pending bookings");
                 }
             }
-            case "ADMIN" -> {
+            case "ADMIN", "DISPATCH_MANAGER" -> {
                 if (!Set.of("APPROVED", "REJECTED", "COMPLETED").contains(newStatus)) {
                     throw new IllegalArgumentException("Invalid admin booking status");
+                }
+                if ("PENDING".equals(booking.getStatus()) && !"APPROVED".equals(newStatus)
+                        && !"REJECTED".equals(newStatus)) {
+                    throw new IllegalArgumentException("Pending bookings must be approved or rejected");
+                }
+                if ("APPROVED".equals(booking.getStatus()) && "COMPLETED".equals(newStatus)
+                        && !paymentRepository.existsByBookingIdAndStatus(bookingId, "COMPLETED")) {
+                    throw new IllegalArgumentException("The booking can only be completed after its payment is verified");
                 }
             }
             default -> throw new IllegalArgumentException("You are not allowed to update bookings");
@@ -102,6 +122,15 @@ public class BookingService {
             Machine machine = booking.getMachine();
             machine.setStatus("RENTED");
             machineRepository.save(machine);
+            if (!invoiceRepository.existsByBookingId(bookingId)) {
+                invoiceService.createInvoice(
+                        bookingId,
+                        booking.getStartDate().minusDays(1).isBefore(LocalDate.now())
+                                ? LocalDate.now().plusDays(30)
+                                : booking.getStartDate().minusDays(1),
+                        "Equipment rental for booking #" + bookingId,
+                        "Please settle this invoice before the rental is completed.");
+            }
         }
         // If completed or rejected, free up the machine
         else if ("COMPLETED".equals(newStatus) || "REJECTED".equals(newStatus) || "CANCELED".equals(newStatus)) {

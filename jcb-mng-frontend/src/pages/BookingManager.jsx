@@ -2,6 +2,8 @@ import { useState, useEffect, useContext, useCallback } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { createBooking, getMyBookings, getAllBookings, updateBookingStatus } from '../services/bookingService';
 import { getAvailableMachines } from '../services/machineService';
+import { makePayment } from '../services/paymentService';
+import { getMyInvoices } from '../services/invoiceService';
 
 const BookingManager = () => {
     const { user } = useContext(AuthContext);
@@ -9,6 +11,7 @@ const BookingManager = () => {
     // Data State
     const [bookings, setBookings] = useState([]);
     const [machines, setMachines] = useState([]);
+    const [invoices, setInvoices] = useState([]);
     
     // UI State
     const [error, setError] = useState('');
@@ -16,6 +19,8 @@ const BookingManager = () => {
     const [loading, setLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [processingId, setProcessingId] = useState(null);
+    const [processingPaymentId, setProcessingPaymentId] = useState(null);
+    const [paymentMethod, setPaymentMethod] = useState('CARD');
     const [fieldErrors, setFieldErrors] = useState({});
     
     // Form State for Customers
@@ -29,11 +34,13 @@ const BookingManager = () => {
             if (isAdminOrDispatch) {
                 setBookings(await getAllBookings());
             } else if (user?.role === 'CUSTOMER') {
-                const [bookingData, availableMachines] = await Promise.all([
+                const [bookingData, availableMachines, invoiceData] = await Promise.all([
                     getMyBookings(),
                     getAvailableMachines(),
+                    getMyInvoices(),
                 ]);
                 setBookings(bookingData);
+                setInvoices(invoiceData);
                 setMachines(availableMachines.filter((machine) =>
                     machine.status === 'AVAILABLE' && machine.operationalStatus === 'OPERATIONAL'
                 ));
@@ -46,7 +53,10 @@ const BookingManager = () => {
     }, [user, isAdminOrDispatch]);
 
     useEffect(() => {
-        loadData();
+        const loadInitialData = async () => {
+            await loadData();
+        };
+        loadInitialData();
     }, [loadData]);
 
     const handleInputChange = (e) => {
@@ -109,6 +119,24 @@ const BookingManager = () => {
             setProcessingId(null);
         }
     };
+
+    const handlePayment = async (bookingId) => {
+        setError('');
+        setSuccess('');
+        setProcessingPaymentId(bookingId);
+        try {
+            await makePayment(bookingId, paymentMethod);
+            await loadData();
+            setSuccess(`Payment submitted for booking #${bookingId}. Finance will verify it shortly.`);
+            setTimeout(() => setSuccess(''), 5000);
+        } catch (err) {
+            setError(err.response?.data || 'Failed to submit payment.');
+        } finally {
+            setProcessingPaymentId(null);
+        }
+    };
+
+    const getInvoiceForBooking = (bookingId) => invoices.find((invoice) => invoice.bookingId === bookingId);
 
     // Metrics Calculation
     const totalBookings = bookings.length;
@@ -249,13 +277,14 @@ const BookingManager = () => {
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Rental Period</th>
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Total Cost</th>
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Status</th>
+                                {user?.role === 'CUSTOMER' && <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Billing</th>}
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={isAdminOrDispatch ? 7 : 6} className="px-6 py-12 text-center text-jcb-textMuted">
+                                    <td colSpan={isAdminOrDispatch ? 7 : 7} className="px-6 py-12 text-center text-jcb-textMuted">
                                         <div className="flex flex-col items-center justify-center">
                                             <svg className="animate-spin h-8 w-8 text-gray-300 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                                             <span className="font-medium">Loading booking ledger...</span>
@@ -264,7 +293,7 @@ const BookingManager = () => {
                                 </tr>
                             ) : bookings.length === 0 ? (
                                 <tr>
-                                    <td colSpan={isAdminOrDispatch ? 7 : 6} className="px-6 py-12 text-center text-jcb-textMuted">
+                                    <td colSpan={isAdminOrDispatch ? 7 : 7} className="px-6 py-12 text-center text-jcb-textMuted">
                                         <div className="flex flex-col items-center justify-center">
                                             <div className="bg-gray-50 p-3 rounded-full mb-3">
                                                 <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
@@ -285,6 +314,33 @@ const BookingManager = () => {
                                             {b.status}
                                         </span>
                                     </td>
+                                    {user?.role === 'CUSTOMER' && (
+                                        <td className="px-6 py-4">
+                                            {b.status !== 'APPROVED' && !b.invoiceStatus ? (
+                                                <span className="text-xs text-jcb-textMuted">Available after approval</span>
+                                            ) : b.paymentStatus === 'COMPLETED' || b.invoiceStatus === 'PAID' ? (
+                                                <span className="px-3 py-1 rounded-full text-xs font-bold border bg-green-50 text-green-700 border-green-200">PAID</span>
+                                            ) : b.paymentStatus === 'PENDING' ? (
+                                                <span className="px-3 py-1 rounded-full text-xs font-bold border bg-yellow-50 text-yellow-700 border-yellow-200">VERIFYING</span>
+                                            ) : (
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs font-bold text-red-600">UNPAID</span>
+                                                    {getInvoiceForBooking(b.id) && (
+                                                        <select
+                                                            aria-label={`Payment method for booking ${b.id}`}
+                                                            value={paymentMethod}
+                                                            onChange={(event) => setPaymentMethod(event.target.value)}
+                                                            className="px-2 py-1 border border-jcb-border rounded text-xs"
+                                                        >
+                                                            <option value="CARD">Card</option>
+                                                            <option value="BANK_TRANSFER">Bank transfer</option>
+                                                            <option value="CASH">Cash</option>
+                                                        </select>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </td>
+                                    )}
                                     <td className="px-6 py-4 text-right">
                                         {processingId === b.id ? (
                                             <span className="text-xs text-gray-400 font-medium animate-pulse">Processing...</span>
@@ -312,6 +368,18 @@ const BookingManager = () => {
                                                     <button onClick={() => handleStatusChange(b.id, 'CANCELED')} className="flex items-center gap-1 px-3 py-1.5 text-red-600 hover:bg-red-50 rounded-md text-xs font-bold transition">
                                                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                                                         Cancel Request
+                                                    </button>
+                                                )}
+                                                {user?.role === 'CUSTOMER' && b.status === 'APPROVED'
+                                                    && b.paymentStatus !== 'COMPLETED'
+                                                    && b.paymentStatus !== 'PENDING'
+                                                    && getInvoiceForBooking(b.id) && (
+                                                    <button
+                                                        onClick={() => handlePayment(b.id)}
+                                                        disabled={processingPaymentId === b.id}
+                                                        className="flex items-center gap-1 px-3 py-1.5 bg-jcb-brand text-black hover:bg-yellow-400 rounded-md text-xs font-bold transition disabled:opacity-60"
+                                                    >
+                                                        {processingPaymentId === b.id ? 'Submitting...' : `Pay Rs. ${b.totalCost?.toLocaleString()}`}
                                                     </button>
                                                 )}
                                             </div>

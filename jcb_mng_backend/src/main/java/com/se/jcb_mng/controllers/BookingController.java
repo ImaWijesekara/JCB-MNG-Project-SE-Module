@@ -17,6 +17,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.se.jcb_mng.entities.Booking;
+import com.se.jcb_mng.repositories.InvoiceRepository;
+import com.se.jcb_mng.repositories.PaymentRepository;
 import com.se.jcb_mng.services.BookingService;
 
 @RestController
@@ -24,9 +26,14 @@ import com.se.jcb_mng.services.BookingService;
 public class BookingController {
 
     private final BookingService bookingService;
+    private final InvoiceRepository invoiceRepository;
+    private final PaymentRepository paymentRepository;
 
-    public BookingController(BookingService bookingService) {
+    public BookingController(BookingService bookingService, InvoiceRepository invoiceRepository,
+                             PaymentRepository paymentRepository) {
         this.bookingService = bookingService;
+        this.invoiceRepository = invoiceRepository;
+        this.paymentRepository = paymentRepository;
     }
 
     public record BookingRequest(Long machineId, String startDate, String endDate) {}
@@ -58,14 +65,14 @@ public class BookingController {
     }
 
     @GetMapping("/all")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'DISPATCH_MANAGER')")
     public ResponseEntity<List<BookingResponse>> getAllBookings() {
         return ResponseEntity.ok(bookingService.getAllBookings()
                 .stream().map(this::toResponse).collect(Collectors.toList()));
     }
 
     @PutMapping("/{id}/status")
-    @PreAuthorize("hasAnyRole('ADMIN', 'CUSTOMER')") // Customer can cancel, Admin can approve/reject
+    @PreAuthorize("hasAnyRole('ADMIN', 'DISPATCH_MANAGER', 'CUSTOMER')")
         public ResponseEntity<?> updateStatus(Authentication auth, @PathVariable Long id, @RequestParam String status) {
         try {
             String role = auth.getAuthorities().stream()
@@ -87,9 +94,13 @@ public class BookingController {
                 b.getStartDate().toString(),
                 b.getEndDate().toString(),
                 b.getTotalCost(),
-                b.getStatus()
+                b.getStatus(),
+                invoiceRepository.findByBookingId(b.getId()).map(invoice -> invoice.getStatus()).orElse(null),
+                paymentRepository.findByBookingId(b.getId()).map(payment -> payment.getStatus()).orElse(null)
         );
     }
 
-    public record BookingResponse(Long id, String customerName, String machineDetails, String startDate, String endDate, Double totalCost, String status) {}
+    public record BookingResponse(Long id, String customerName, String machineDetails, String startDate,
+                                  String endDate, Double totalCost, String status, String invoiceStatus,
+                                  String paymentStatus) {}
 }
