@@ -1,6 +1,6 @@
 import { useState, useEffect, useContext, useMemo } from 'react';
 import { AuthContext } from '../context/AuthContext';
-import { submitFeedback, getAllFeedback, getMyFeedback, replyToFeedback, deleteFeedback } from '../services/feedbackService';
+import { submitFeedback, getAllFeedback, getMyFeedback, updateFeedback, replyToFeedback, deleteFeedback } from '../services/feedbackService';
 import { getMyBookings } from '../services/bookingService';
 
 const FeedbackManager = () => {
@@ -20,6 +20,9 @@ const FeedbackManager = () => {
     const [deletingId, setDeletingId] = useState(null);
     const [replyingId, setReplyingId] = useState(null);
     const [replyDrafts, setReplyDrafts] = useState({});
+    const [editingId, setEditingId] = useState(null);
+    const [editDraft, setEditDraft] = useState({ message: '', rating: 5 });
+    const [isSavingEdit, setIsSavingEdit] = useState(false);
     const [commentError, setCommentError] = useState('');
     
     // Form State for Customers
@@ -27,27 +30,33 @@ const FeedbackManager = () => {
     const [hoverRating, setHoverRating] = useState(0);
     const [comment, setComment] = useState('');
 
-    const loadFeedbacks = async () => {
-        if (!user) return;
-        setIsLoading(true);
-        setError('');
-        try {
-            const data = user.role === 'ADMIN'
-                ? await getAllFeedback()
-                : await getMyFeedback();
-            setFeedbacks(data);
-            if (user.role === 'CUSTOMER') {
-                setBookings(await getMyBookings());
-            }
-        } catch (err) {
-            setError(err.response?.data || 'Failed to load feedback records.');
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
     useEffect(() => {
+        if (!user) return undefined;
+        let cancelled = false;
+
+        const loadFeedbacks = async () => {
+            try {
+                const [data, customerBookings] = await Promise.all([
+                    user.role === 'ADMIN' ? getAllFeedback() : getMyFeedback(),
+                    user.role === 'CUSTOMER' ? getMyBookings() : Promise.resolve([])
+                ]);
+                if (cancelled) return;
+                setFeedbacks(data);
+                setBookings(customerBookings);
+                setError('');
+            } catch (err) {
+                if (!cancelled) {
+                    setError(err.response?.data || 'Failed to load feedback records.');
+                }
+            } finally {
+                if (!cancelled) setIsLoading(false);
+            }
+        };
+
         loadFeedbacks();
+        return () => {
+            cancelled = true;
+        };
     }, [user]);
 
     // VIVA FLEX 1: Live Search Filtering for Admins
@@ -139,6 +148,50 @@ const FeedbackManager = () => {
             setError(err.response?.data || 'Failed to save your reply.');
         } finally {
             setReplyingId(null);
+        }
+    };
+
+    const startEditing = (feedback) => {
+        setError('');
+        setSuccess('');
+        setEditingId(feedback.id);
+        setEditDraft({
+            message: feedback.message || feedback.comment || '',
+            rating: feedback.rating
+        });
+    };
+
+    const cancelEditing = () => {
+        setEditingId(null);
+        setEditDraft({ message: '', rating: 5 });
+        setCommentError('');
+    };
+
+    const handleUpdate = async (e, feedback) => {
+        e.preventDefault();
+        setError('');
+        setSuccess('');
+        setCommentError('');
+        const message = editDraft.message.trim();
+
+        if (message.length < 10) {
+            setCommentError('Please provide a slightly more detailed review (minimum 10 characters).');
+            return;
+        }
+
+        setIsSavingEdit(true);
+        try {
+            const updatedFeedback = await updateFeedback(feedback.id, message, editDraft.rating);
+            setFeedbacks((current) => current.map((item) =>
+                item.id === feedback.id ? updatedFeedback : item
+            ));
+            cancelEditing();
+            setSuccess('Your review has been updated.');
+            setTimeout(() => setSuccess(''), 4000);
+        } catch (err) {
+            setError(err.response?.data || 'Failed to update your review.');
+        } finally {
+            setIsSavingEdit(false);
         }
     };
 
@@ -318,12 +371,13 @@ const FeedbackManager = () => {
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Response</th>
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Date</th>
                                 {user?.role === 'ADMIN' && <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider text-right">Actions</th>}
+                                {user?.role === 'CUSTOMER' && <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider text-right">Actions</th>}
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {isLoading ? (
                                 <tr>
-                                    <td colSpan={user?.role === 'ADMIN' ? 8 : 6} className="px-6 py-12 text-center text-jcb-textMuted">
+                                    <td colSpan={user?.role === 'ADMIN' ? 8 : 7} className="px-6 py-12 text-center text-jcb-textMuted">
                                         <div className="flex flex-col items-center justify-center">
                                             <svg className="animate-spin h-8 w-8 text-gray-300 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                                             <span className="font-medium">Loading feedback records...</span>
@@ -332,7 +386,7 @@ const FeedbackManager = () => {
                                 </tr>
                             ) : filteredFeedbacks.length === 0 ? (
                                 <tr>
-                                    <td colSpan={user?.role === 'ADMIN' ? 8 : 6} className="px-6 py-12 text-center text-jcb-textMuted">
+                                    <td colSpan={user?.role === 'ADMIN' ? 8 : 7} className="px-6 py-12 text-center text-jcb-textMuted">
                                         <div className="flex flex-col items-center justify-center">
                                             <div className="bg-gray-50 p-3 rounded-full mb-3">
                                                 <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
@@ -347,10 +401,44 @@ const FeedbackManager = () => {
                                     {user?.role === 'ADMIN' && <td className="px-6 py-4 font-bold text-jcb-textMain">{f.username || f.customerName}</td>}
                                     <td className="px-6 py-4 text-jcb-textMain">{f.machineDetails || 'Not linked to a booking'}</td>
                                     <td className="px-6 py-4">
-                                        {renderStars(f.rating)}
+                                        {user?.role === 'CUSTOMER' && editingId === f.id ? (
+                                            <div className="flex gap-1" role="group" aria-label="Edit rating">
+                                                {[1, 2, 3, 4, 5].map((star) => (
+                                                    <button
+                                                        type="button"
+                                                        key={star}
+                                                        onClick={() => setEditDraft((current) => ({ ...current, rating: star }))}
+                                                        aria-label={`${star} star${star === 1 ? '' : 's'}`}
+                                                        aria-pressed={editDraft.rating === star}
+                                                        className={`text-xl ${star <= editDraft.rating ? 'text-jcb-brand' : 'text-gray-300'}`}
+                                                    >
+                                                        ★
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        ) : renderStars(f.rating)}
                                     </td>
-                                    <td className="px-6 py-4 text-jcb-textMain max-w-xs truncate" title={f.message || f.comment}>
-                                        {f.message || f.comment}
+                                    <td className="px-6 py-4 text-jcb-textMain max-w-xs">
+                                        {user?.role === 'CUSTOMER' && editingId === f.id ? (
+                                            <form id={`edit-feedback-${f.id}`} onSubmit={(e) => handleUpdate(e, f)}>
+                                                <textarea
+                                                    value={editDraft.message}
+                                                    onChange={(e) => {
+                                                        setEditDraft((current) => ({ ...current, message: e.target.value }));
+                                                        if (e.target.value.trim().length >= 10) setCommentError('');
+                                                    }}
+                                                    maxLength={1000}
+                                                    rows="3"
+                                                    aria-label="Edit your review"
+                                                    className="w-full min-w-56 px-3 py-2 bg-white border border-jcb-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 resize-y"
+                                                />
+                                                {commentError && <p className="mt-1 text-xs font-bold text-red-500">{commentError}</p>}
+                                            </form>
+                                        ) : (
+                                            <span className="block truncate" title={f.message || f.comment}>
+                                                {f.message || f.comment}
+                                            </span>
+                                        )}
                                     </td>
                                     <td className="px-6 py-4 min-w-72 whitespace-normal">
                                         {user?.role === 'ADMIN' ? (
@@ -414,6 +502,38 @@ const FeedbackManager = () => {
                                                     )}
                                                 </button>
                                             </div>
+                                        </td>
+                                    )}
+                                    {user?.role === 'CUSTOMER' && (
+                                        <td className="px-6 py-4 text-right">
+                                            {editingId === f.id ? (
+                                                <div className="flex justify-end gap-2">
+                                                    <button
+                                                        type="submit"
+                                                        form={`edit-feedback-${f.id}`}
+                                                        disabled={isSavingEdit}
+                                                        className="px-3 py-1.5 rounded-md bg-jcb-brand text-black text-xs font-bold hover:bg-yellow-400 disabled:opacity-50"
+                                                    >
+                                                        {isSavingEdit ? 'Saving...' : 'Save'}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={cancelEditing}
+                                                        disabled={isSavingEdit}
+                                                        className="px-3 py-1.5 rounded-md border border-jcb-border text-xs font-bold hover:bg-gray-50 disabled:opacity-50"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => startEditing(f)}
+                                                    className="px-3 py-1.5 rounded-md border border-jcb-border text-xs font-bold text-jcb-textMain hover:bg-gray-50"
+                                                >
+                                                    Edit review
+                                                </button>
+                                            )}
                                         </td>
                                     )}
                                 </tr>
