@@ -22,7 +22,7 @@ import com.se.jcb_mng.entities.Invoice;
 import com.se.jcb_mng.services.InvoiceService;
 
 @RestController
-@RequestMapping("/invoices")
+@RequestMapping("/api/invoices")
 @CrossOrigin(origins = "*")
 public class InvoiceController {
 

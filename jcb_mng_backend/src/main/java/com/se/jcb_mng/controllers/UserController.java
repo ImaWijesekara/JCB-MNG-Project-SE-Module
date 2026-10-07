@@ -94,7 +94,7 @@ public class UserController {
     }
 
     @GetMapping("/operators")
-    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATION_MANAGER', 'MAINTENANCE_MANAGER', 'DISPATCH_MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATION_MANAGER', 'MAINTENANCE_MANAGER')")
     public ResponseEntity<List<OperatorResponse>> getOperators() {
         List<OperatorResponse> operators = userService.getOperators().stream()
                 .map(operator -> new OperatorResponse(operator.getId(), operator.getUsername()))

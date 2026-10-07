@@ -41,7 +41,7 @@ public class JobAssignmentController {
             String notes) {}
 
     @PostMapping("/assign")
-    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATION_MANAGER', 'DISPATCH_MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATION_MANAGER')")
     public ResponseEntity<?> assignJob(@RequestBody AssignmentRequest request) {
         try {
             if (request == null) {
@@ -62,7 +62,7 @@ public class JobAssignmentController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATION_MANAGER', 'DISPATCH_MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATION_MANAGER')")
     public ResponseEntity<?> updateAssignment(@PathVariable Long id, @RequestBody AssignmentRequest request) {
         try {
             if (request == null) {
@@ -84,14 +84,14 @@ public class JobAssignmentController {
     }
 
     @GetMapping("/all")
-    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATION_MANAGER', 'DISPATCH_MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATION_MANAGER')")
     public ResponseEntity<List<JobResponse>> getAllJobs() {
         return ResponseEntity.ok(jobService.getAllAssignments().stream()
                 .map(this::toResponse).collect(Collectors.toList()));
     }
 
     @GetMapping("/available-bookings")
-    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATION_MANAGER', 'DISPATCH_MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATION_MANAGER')")
     public ResponseEntity<List<BookingOption>> getAvailableBookings() {
         return ResponseEntity.ok(jobService.getAvailableBookings().stream()
                 .map(booking -> new BookingOption(
@@ -110,7 +110,7 @@ public class JobAssignmentController {
     }
 
     @PutMapping("/{id}/status")
-    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATION_MANAGER', 'DISPATCH_MANAGER', 'OPERATOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATION_MANAGER', 'OPERATOR')")
         public ResponseEntity<?> updateStatus(Authentication auth, @PathVariable Long id, @RequestParam String status) {
         try {
             String role = auth.getAuthorities().stream()
@@ -125,7 +125,7 @@ public class JobAssignmentController {
     }
 
     @DeleteMapping("/delete/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATION_MANAGER', 'DISPATCH_MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATION_MANAGER')")
     public ResponseEntity<?> deleteAssignment(@PathVariable Long id) {
         try {
             jobService.deleteAssignment(id);

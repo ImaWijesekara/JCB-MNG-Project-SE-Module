@@ -246,7 +246,6 @@ const UserManager = () => {
                                 <option value="OPERATOR">Operator</option>
                                 <option value="OPERATION_MANAGER">Operation Manager</option>
                                 <option value="MAINTENANCE_MANAGER">Maintenance Manager</option>
-                                <option value="DISPATCH_MANAGER">Dispatch Manager</option>
                                 <option value="FINANCE_OFFICER">Finance Officer</option>
                                 <option value="ADMIN">System Admin</option>
                             </select>
@@ -323,7 +322,6 @@ const UserManager = () => {
                                             u.role === 'ADMIN' ? 'bg-purple-50 text-purple-700 border-purple-200' :
                                             u.role === 'CUSTOMER' ? 'bg-gray-100 text-gray-700 border-gray-200' :
                                             u.role === 'OPERATOR' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                                            u.role === 'DISPATCH_MANAGER' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
                                             u.role === 'MAINTENANCE_MANAGER' ? 'bg-amber-50 text-amber-800 border-amber-200' :
                                             u.role === 'FINANCE_OFFICER' ? 'bg-green-50 text-green-700 border-green-200' :
                                             'bg-orange-50 text-orange-700 border-orange-200'

@@ -9,6 +9,7 @@ const navigationByRole = {
         { label: 'Users Directory', path: '/dashboard/users' },
         { label: 'Machine Fleet', path: '/dashboard/machines' },
         { label: 'Bookings & Dispatch', path: '/dashboard/bookings' },
+        { label: 'Operator Assignments', path: '/dashboard/jobs' },
         { label: 'Financial Ledger', path: '/dashboard/payments' },
         { label: 'Maintenance', path: '/dashboard/maintenance' },
         { label: 'Feedback Moderation', path: '/dashboard/feedback' },
@@ -23,11 +24,6 @@ const navigationByRole = {
         { label: 'Maintenance Dashboard', path: '/dashboard' },
         { label: 'Maintenance Records', path: '/dashboard/maintenance' },
         { label: 'Fleet Status', path: '/dashboard/machines' },
-    ],
-    DISPATCH_MANAGER: [
-        { label: 'Overview', path: '/dashboard' },
-        { label: 'Bookings & Approvals', path: '/dashboard/bookings' },
-        { label: 'Operator Assignments', path: '/dashboard/jobs' },
     ],
     FINANCE_OFFICER: [
         { label: 'Financial Dashboard', path: '/dashboard' },
@@ -58,7 +54,6 @@ const headerByRole = {
     FINANCE_OFFICER: 'Financial Operations',
     OPERATION_MANAGER: 'Fleet Operations Center',
     MAINTENANCE_MANAGER: 'Maintenance Operations Center',
-    DISPATCH_MANAGER: 'Dispatch Command Center'
 };
 
 const Dashboard = () => {

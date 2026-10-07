@@ -26,12 +26,12 @@ const BookingManager = () => {
     // Form State for Customers
     const [formData, setFormData] = useState({ machineId: '', startDate: '', endDate: '' });
 
-    const isAdminOrDispatch = user?.role === 'ADMIN' || user?.role === 'DISPATCH_MANAGER';
+    const isAdmin = user?.role === 'ADMIN';
 
     const loadData = useCallback(async () => {
         setLoading(true);
         try {
-            if (isAdminOrDispatch) {
+            if (isAdmin) {
                 setBookings(await getAllBookings());
             } else if (user?.role === 'CUSTOMER') {
                 const [bookingData, availableMachines, invoiceData] = await Promise.all([
@@ -50,7 +50,7 @@ const BookingManager = () => {
         } finally {
             setLoading(false);
         }
-    }, [user, isAdminOrDispatch]);
+    }, [user, isAdmin]);
 
     useEffect(() => {
         const loadInitialData = async () => {
@@ -161,10 +161,10 @@ const BookingManager = () => {
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 pb-6 border-b border-jcb-border">
                 <div>
                     <h2 className="text-3xl font-extrabold tracking-tight text-jcb-textMain">
-                        {isAdminOrDispatch ? 'Booking & Dispatch' : 'My Rentals'}
+                        {isAdmin ? 'Booking & Dispatch' : 'My Rentals'}
                     </h2>
                     <p className="text-sm text-jcb-textMuted mt-1.5 font-medium">
-                        {isAdminOrDispatch ? 'Manage customer requests and dispatch logistics.' : 'Request machinery and track your active rentals.'}
+                        {isAdmin ? 'Manage customer requests and dispatch logistics.' : 'Request machinery and track your active rentals.'}
                     </p>
                 </div>
                 <div className="mt-4 md:mt-0 flex items-center gap-3">
@@ -272,7 +272,7 @@ const BookingManager = () => {
                         <thead className="bg-gray-50 border-b border-jcb-border">
                             <tr>
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Ticket ID</th>
-                                {isAdminOrDispatch && <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Client</th>}
+                                {isAdmin && <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Client</th>}
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Machine Specs</th>
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Rental Period</th>
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Total Cost</th>
@@ -284,7 +284,7 @@ const BookingManager = () => {
                         <tbody className="divide-y divide-gray-100">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={isAdminOrDispatch ? 7 : 7} className="px-6 py-12 text-center text-jcb-textMuted">
+                                    <td colSpan="7" className="px-6 py-12 text-center text-jcb-textMuted">
                                         <div className="flex flex-col items-center justify-center">
                                             <svg className="animate-spin h-8 w-8 text-gray-300 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                                             <span className="font-medium">Loading booking ledger...</span>
@@ -293,7 +293,7 @@ const BookingManager = () => {
                                 </tr>
                             ) : bookings.length === 0 ? (
                                 <tr>
-                                    <td colSpan={isAdminOrDispatch ? 7 : 7} className="px-6 py-12 text-center text-jcb-textMuted">
+                                    <td colSpan="7" className="px-6 py-12 text-center text-jcb-textMuted">
                                         <div className="flex flex-col items-center justify-center">
                                             <div className="bg-gray-50 p-3 rounded-full mb-3">
                                                 <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
@@ -305,7 +305,7 @@ const BookingManager = () => {
                             ) : bookings.map((b) => (
                                 <tr key={b.id} className="hover:bg-blue-50/30 transition-colors group">
                                     <td className="px-6 py-4 text-jcb-textMuted font-mono">#{b.id}</td>
-                                    {isAdminOrDispatch && <td className="px-6 py-4 font-bold text-jcb-textMain">{b.customerName}</td>}
+                                    {isAdmin && <td className="px-6 py-4 font-bold text-jcb-textMain">{b.customerName}</td>}
                                     <td className="px-6 py-4 text-jcb-textMain font-medium truncate max-w-xs" title={b.machineDetails}>{b.machineDetails}</td>
                                     <td className="px-6 py-4 text-jcb-textMuted">{b.startDate} <span className="mx-1 text-gray-300">→</span> {b.endDate}</td>
                                     <td className="px-6 py-4 font-black text-jcb-textMain">Rs. {b.totalCost?.toLocaleString()}</td>
@@ -347,7 +347,7 @@ const BookingManager = () => {
                                         ) : (
                                             <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 {/* ADMIN/DISPATCH ACTIONS */}
-                                                {isAdminOrDispatch && b.status === 'PENDING' && (
+                                                {isAdmin && b.status === 'PENDING' && (
                                                     <>
                                                         <button onClick={() => handleStatusChange(b.id, 'APPROVED')} className="flex items-center gap-1 px-3 py-1.5 bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 rounded-md text-xs font-bold transition">
                                                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg> Approve
@@ -357,7 +357,7 @@ const BookingManager = () => {
                                                         </button>
                                                     </>
                                                 )}
-                                                {isAdminOrDispatch && b.status === 'APPROVED' && (
+                                                {isAdmin && b.status === 'APPROVED' && (
                                                     <button onClick={() => handleStatusChange(b.id, 'COMPLETED')} className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-md text-xs font-bold transition">
                                                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg> Archive
                                                     </button>

@@ -35,7 +35,7 @@ const JobManager = () => {
     const [notes, setNotes] = useState('');
     const [editingJobId, setEditingJobId] = useState(null);
 
-    const canManageJobs = ['ADMIN', 'OPERATION_MANAGER', 'DISPATCH_MANAGER'].includes(user?.role);
+    const canManageJobs = ['ADMIN', 'OPERATION_MANAGER'].includes(user?.role);
     const isOperator = user?.role === 'OPERATOR';
     const editingJob = jobs.find((job) => job.id === editingJobId);
 

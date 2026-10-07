@@ -17,6 +17,7 @@ const overviewLinks = {
     ADMIN: [
         ['Manage Users', '/dashboard/users'],
         ['Fleet Inventory', '/dashboard/machines'],
+        ['Manage Bookings', '/dashboard/bookings'],
         ['Dispatch Jobs', '/dashboard/jobs'],
         ['Moderate Feedback', '/dashboard/feedback'],
     ],
@@ -28,10 +29,6 @@ const overviewLinks = {
     MAINTENANCE_MANAGER: [
         ['Manage Maintenance Records', '/dashboard/maintenance'],
         ['Monitor Fleet Status', '/dashboard/machines'],
-    ],
-    DISPATCH_MANAGER: [
-        ['Manage Bookings', '/dashboard/bookings'],
-        ['Dispatch Operators', '/dashboard/jobs'],
     ],
     FINANCE_OFFICER: [
         ['Verify Payments', '/dashboard/payments'],
@@ -74,12 +71,6 @@ const getOverviewStats = (role, data) => {
                 ['Machines In Maintenance', data.machines?.filter(m => m.status === 'MAINTENANCE').length || 0, '/dashboard/machines'],
                 ['Non-Operational Fleet', data.machines?.filter(m => m.operationalStatus === 'NON_OPERATIONAL').length || 0, '/dashboard/machines'],
                 ['Completed Tasks', data.maintenance?.filter(t => t.status === 'COMPLETED').length || 0, '/dashboard/maintenance'],
-            ];
-        case 'DISPATCH_MANAGER':
-            return [
-                ['Pending Requests', data.bookings?.filter(b => b.status === 'PENDING').length || 0, '/dashboard/bookings'],
-                ['Approved Rentals', data.bookings?.filter(b => b.status === 'APPROVED').length || 0, '/dashboard/bookings'],
-                ['Active Jobs', data.jobs?.filter(j => j.status === 'IN_PROGRESS').length || 0, '/dashboard/jobs'],
             ];
         case 'FINANCE_OFFICER':
             return [
@@ -144,13 +135,6 @@ const DashboardSection = () => {
                     ]);
                     data = { ...data, machines, maintenance };
                 
-                } else if (role === 'DISPATCH_MANAGER') {
-                    const [bookings, jobs] = await Promise.all([
-                        getAllBookings().catch(() => []), 
-                        getAllJobs ? getAllJobs().catch(() => []) : Promise.resolve([])
-                    ]);
-                    data = { ...data, bookings, jobs };
-
                 } else if (role === 'FINANCE_OFFICER') {
                     const payments = await getAllPayments().catch(() => []);
                     data = { ...data, payments };
@@ -193,7 +177,6 @@ const DashboardSection = () => {
             case 'ADMIN': return 'Executive Command Center';
             case 'OPERATION_MANAGER': return 'Fleet Operations Overview';
             case 'MAINTENANCE_MANAGER': return 'Maintenance Operations Overview';
-            case 'DISPATCH_MANAGER': return 'Logistics & Dispatch Board';
             case 'FINANCE_OFFICER': return 'Financial Control Panel';
             case 'OPERATOR': return 'Operator Workspace';
             default: return 'Customer Portal';
@@ -205,7 +188,6 @@ const DashboardSection = () => {
             case 'ADMIN': return 'Supervisory overview of system health, users, and core operations.';
             case 'OPERATION_MANAGER': return 'Monitor machine inventory, health, and scheduled maintenance tasks.';
             case 'MAINTENANCE_MANAGER': return 'Schedule repairs, assign technicians, and track maintenance history across the fleet.';
-            case 'DISPATCH_MANAGER': return 'Review incoming booking requests and allocate operators to machines.';
             case 'FINANCE_OFFICER': return 'Track pending payments, generate invoices, and analyze revenue.';
             case 'OPERATOR': return 'Track your active job assignments and log maintenance requests.';
             default: return 'Browse available equipment, track rentals, and manage billing.';

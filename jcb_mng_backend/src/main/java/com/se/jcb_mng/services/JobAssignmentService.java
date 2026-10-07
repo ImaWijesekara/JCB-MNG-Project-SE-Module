@@ -125,7 +125,7 @@ public class JobAssignmentService {
             if (!Set.of("IN_PROGRESS", "COMPLETED").contains(normalizedStatus)) {
                 throw new IllegalArgumentException("Operators can only start or complete jobs");
             }
-        } else if (!Set.of("ADMIN", "OPERATION_MANAGER", "DISPATCH_MANAGER").contains(role)) {
+        } else if (!Set.of("ADMIN", "OPERATION_MANAGER").contains(role)) {
             throw new IllegalArgumentException("You are not allowed to update jobs");
         }
 
@@ -179,7 +179,7 @@ public class JobAssignmentService {
         return notes == null || notes.isBlank() ? null : notes.trim();
     }
 
-    // DELETE (Admin/operation/dispatch manager)
+    // DELETE (Admin/operation manager)
     public void deleteAssignment(Long id) {
         if (!jobRepository.existsById(id)) {
             throw new IllegalArgumentException("Job Assignment not found");

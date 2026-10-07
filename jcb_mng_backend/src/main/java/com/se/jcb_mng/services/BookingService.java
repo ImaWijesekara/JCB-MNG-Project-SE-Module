@@ -100,7 +100,7 @@ public class BookingService {
                     throw new IllegalArgumentException("Customers can only cancel their own pending bookings");
                 }
             }
-            case "ADMIN", "DISPATCH_MANAGER" -> {
+            case "ADMIN" -> {
                 if (!Set.of("APPROVED", "REJECTED", "COMPLETED").contains(newStatus)) {
                     throw new IllegalArgumentException("Invalid admin booking status");
                 }

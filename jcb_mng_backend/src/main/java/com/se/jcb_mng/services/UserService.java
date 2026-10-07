@@ -2,6 +2,7 @@ package com.se.jcb_mng.services;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -11,6 +12,9 @@ import com.se.jcb_mng.repositories.UserRepository;
 
 @Service
 public class UserService {
+
+    private static final Set<String> SUPPORTED_ROLES = Set.of(
+            "ADMIN", "CUSTOMER", "OPERATOR", "OPERATION_MANAGER", "MAINTENANCE_MANAGER", "FINANCE_OFFICER");
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -35,15 +39,9 @@ public class UserService {
         }
 
         // Standardize Role (Default to CUSTOMER, remove "ROLE_" prefix if present)
-        String role = user.getRole();
-        if (role == null || role.isBlank()) {
-            role = "CUSTOMER";
-        }
-        role = role.trim().toUpperCase();
-        if (role.startsWith("ROLE_")) {
-            role = role.substring(5);
-        }
-        user.setRole(role);
+        user.setRole(normalizeRole(user.getRole() == null || user.getRole().isBlank()
+                ? "CUSTOMER"
+                : user.getRole()));
 
         return userRepository.save(user);
     }
@@ -88,11 +86,7 @@ public class UserService {
         // Update Role
         String role = updatedData.getRole();
         if (role != null && !role.isBlank()) {
-            role = role.trim().toUpperCase();
-            if (role.startsWith("ROLE_")) {
-                role = role.substring(5);
-            }
-            existingUser.setRole(role);
+            existingUser.setRole(normalizeRole(role));
         }
 
         // Only update password if a new one was actually typed in
@@ -101,6 +95,17 @@ public class UserService {
         }
 
         return userRepository.save(existingUser);
+    }
+
+    private String normalizeRole(String role) {
+        String normalizedRole = role.trim().toUpperCase();
+        if (normalizedRole.startsWith("ROLE_")) {
+            normalizedRole = normalizedRole.substring(5);
+        }
+        if (!SUPPORTED_ROLES.contains(normalizedRole)) {
+            throw new IllegalArgumentException("Unsupported user role");
+        }
+        return normalizedRole;
     }
 
     // DELETE

@@ -1,11 +1,9 @@
 package com.se.jcb_mng.config;
 
 import java.io.IOException;
-import java.security.SignatureException;
 
 import io.jsonwebtoken.ExpiredJwtException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
@@ -57,23 +55,14 @@ public class JwtRequestFilter extends OncePerRequestFilter {
             UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
 
             if (jwtUtil.validateToken(jwt, userDetails)) {
-                String role = jwtUtil.extractRole(jwt);
-                String authority = role == null || role.isBlank()
-                    ? userDetails.getAuthorities().iterator().next().getAuthority()
-                    : "ROLE_" + normalizeRole(role);
                 UsernamePasswordAuthenticationToken usernamePasswordAuthenticationToken = new UsernamePasswordAuthenticationToken(
-                    userDetails, null, java.util.List.of(new SimpleGrantedAuthority(authority)));
+                    userDetails, null, userDetails.getAuthorities());
                 usernamePasswordAuthenticationToken
                         .setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(usernamePasswordAuthenticationToken);
             }
         }
         chain.doFilter(request, response);
-    }
-
-    private String normalizeRole(String role) {
-        String normalized = role.trim().toUpperCase();
-        return normalized.startsWith("ROLE_") ? normalized.substring("ROLE_".length()) : normalized;
     }
 
 }

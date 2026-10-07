@@ -32,6 +32,8 @@ const InvoiceManager = () => {
     const [success, setSuccess] = useState('');
 
     const loadData = useCallback(async () => {
+        setIsLoading(true);
+        setError('');
         try {
             const [invoiceData, bookingData] = await fetchInvoiceData();
             setInvoices(invoiceData);
@@ -44,23 +46,11 @@ const InvoiceManager = () => {
     }, []);
 
     useEffect(() => {
-        let isCurrent = true;
-        const loadInitialData = async () => {
-            try {
-                const [invoiceData, bookingData] = await fetchInvoiceData();
-                if (isCurrent) {
-                    setInvoices(invoiceData);
-                    setEligibleBookings(bookingData);
-                }
-            } catch (err) {
-                if (isCurrent) setError(err.response?.data || 'Failed to load invoice ledger.');
-            } finally {
-                if (isCurrent) setIsLoading(false);
-            }
-        };
-        loadInitialData();
-        return () => { isCurrent = false; };
-    }, []);
+        const timeoutId = window.setTimeout(() => {
+            void loadData();
+        }, 0);
+        return () => window.clearTimeout(timeoutId);
+    }, [loadData]);
 
     const filteredInvoices = useMemo(() => {
         const search = searchTerm.trim().toLowerCase();
@@ -72,6 +62,7 @@ const InvoiceManager = () => {
             || String(invoice.bookingId).includes(search));
     }, [invoices, searchTerm]);
     const editingInvoice = invoices.find((invoice) => invoice.id === editingInvoiceId);
+    const selectedBooking = eligibleBookings.find((booking) => String(booking.id) === bookingId);
 
     const resetForm = () => {
         setBookingId('');
@@ -89,6 +80,13 @@ const InvoiceManager = () => {
         setNotes(invoice.notes || '');
         setError('');
         setSuccess('');
+    };
+
+    const handleBookingChange = (event) => {
+        const selectedId = event.target.value;
+        const selected = eligibleBookings.find((booking) => String(booking.id) === selectedId);
+        setBookingId(selectedId);
+        setDescription(selected ? `Equipment rental for booking #${selected.id}` : '');
     };
 
     const handleSubmit = async (event) => {
@@ -199,15 +197,30 @@ const InvoiceManager = () => {
                         {!editingInvoiceId && (
                             <div className="md:col-span-2 xl:col-span-4">
                                 <label className="block text-xs font-bold text-jcb-textMuted uppercase tracking-wider mb-1.5" htmlFor="invoice-booking">Approved booking</label>
-                                <select id="invoice-booking" value={bookingId} onChange={(event) => setBookingId(event.target.value)} required className="w-full px-4 py-2.5 bg-white border border-jcb-border rounded-lg text-sm">
-                                    <option value="">-- Choose booking --</option>
-                                    {eligibleBookings.map((booking) => (
-                                        <option key={booking.id} value={booking.id}>
-                                            Booking #{booking.id} | {booking.customerName} | {booking.machineDetails} | Rs. {booking.totalCost?.toLocaleString()}
-                                        </option>
-                                    ))}
-                                </select>
-                                {eligibleBookings.length === 0 && !isLoading && <p className="mt-1.5 text-xs text-jcb-textMuted">No approved bookings are waiting for invoices.</p>}
+                                {eligibleBookings.length > 0 ? (
+                                    <select id="invoice-booking" value={bookingId} onChange={handleBookingChange} required className="w-full px-4 py-2.5 bg-white border border-jcb-border rounded-lg text-sm">
+                                        <option value="">-- Choose booking --</option>
+                                        {eligibleBookings.map((booking) => (
+                                            <option key={booking.id} value={booking.id}>
+                                                Booking #{booking.id} | {booking.customerName} | {booking.machineDetails} | Rs. {booking.totalCost?.toLocaleString()}
+                                            </option>
+                                        ))}
+                                    </select>
+                                ) : (
+                                    <div className="flex flex-col gap-2 rounded-md border border-jcb-border bg-gray-50 p-4 text-sm text-jcb-textMuted sm:flex-row sm:items-center sm:justify-between">
+                                        <span>{isLoading ? 'Checking approved bookings...' : 'No approved bookings are ready to invoice. Dispatch must approve a booking before it can be billed.'}</span>
+                                        <button type="button" onClick={() => void loadData()} disabled={isLoading} className="font-bold text-jcb-textMain underline disabled:opacity-60">Refresh bookings</button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                        {selectedBooking && !editingInvoiceId && (
+                            <div className="md:col-span-2 xl:col-span-4 grid gap-3 rounded-md border border-green-200 bg-green-50 p-4 text-sm sm:grid-cols-2 xl:grid-cols-4">
+                                <div><span className="block text-xs font-bold uppercase text-jcb-textMuted">Customer</span><span className="font-semibold text-jcb-textMain">{selectedBooking.customerName}</span></div>
+                                <div><span className="block text-xs font-bold uppercase text-jcb-textMuted">Equipment</span><span className="font-semibold text-jcb-textMain">{selectedBooking.machineDetails}</span></div>
+                                <div><span className="block text-xs font-bold uppercase text-jcb-textMuted">Rental period</span><span className="font-semibold text-jcb-textMain">{selectedBooking.startDate} to {selectedBooking.endDate}</span></div>
+                                <div><span className="block text-xs font-bold uppercase text-jcb-textMuted">Invoice amount</span><span className="font-bold text-green-700">Rs. {Number(selectedBooking.totalCost || 0).toLocaleString()}</span></div>
+                                <p className="sm:col-span-2 xl:col-span-4 text-xs text-jcb-textMuted">Review these approved booking details. The amount and customer are taken from the booking and cannot be changed here.</p>
                             </div>
                         )}
                         {editingInvoice && (
@@ -256,7 +269,7 @@ const InvoiceManager = () => {
                         {!editingInvoiceId && <p className="md:col-span-2 xl:col-span-3 text-xs text-jcb-textMuted">The issue date is set automatically. Invoice amount is copied from the approved booking and cannot be edited.</p>}
                         <div className="md:col-span-2 xl:col-span-4 flex justify-end">
                             <button type="submit" disabled={isSubmitting || (!editingInvoiceId && !bookingId)} className="bg-jcb-brand text-black font-bold py-2.5 px-5 rounded-lg hover:bg-yellow-400 transition disabled:opacity-60">
-                                {isSubmitting ? 'Saving...' : editingInvoiceId ? 'Save Invoice Changes' : 'Issue Invoice'}
+                                {isSubmitting ? 'Generating...' : editingInvoiceId ? 'Save Invoice Changes' : 'Generate Invoice'}
                             </button>
                         </div>
                     </div>
