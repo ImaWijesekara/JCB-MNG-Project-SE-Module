@@ -45,6 +45,16 @@ public class Feedback {
     @Column(name = "submitted_at", updatable = false)
     private LocalDateTime submittedAt;
 
+    @Column(name = "admin_reply", length = 1000)
+    private String adminReply;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "replied_by_user_id")
+    private User repliedBy;
+
+    @Column(name = "replied_at")
+    private LocalDateTime repliedAt;
+
     @PrePersist
     protected void onCreate() {
         this.submittedAt = LocalDateTime.now();

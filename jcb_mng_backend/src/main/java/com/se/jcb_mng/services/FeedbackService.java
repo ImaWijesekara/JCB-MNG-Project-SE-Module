@@ -1,5 +1,6 @@
 package com.se.jcb_mng.services;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -78,6 +79,32 @@ public class FeedbackService {
 
         feedback.setMessage(message.trim());
         feedback.setRating(rating);
+        return feedbackRepository.save(feedback);
+    }
+
+    public Feedback replyToFeedback(Long id, String username, String reply) {
+        if (id == null) {
+            throw new IllegalArgumentException("Feedback ID is required");
+        }
+        if (username == null || username.isBlank()) {
+            throw new IllegalArgumentException("Authenticated user is required");
+        }
+        if (reply == null || reply.isBlank()) {
+            throw new IllegalArgumentException("Reply is required");
+        }
+        String normalizedReply = reply.trim();
+        if (normalizedReply.length() > 1000) {
+            throw new IllegalArgumentException("Reply must not exceed 1000 characters");
+        }
+
+        Feedback feedback = feedbackRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Feedback not found"));
+        User admin = userRepository.findByUsername(username.trim())
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        feedback.setAdminReply(normalizedReply);
+        feedback.setRepliedBy(admin);
+        feedback.setRepliedAt(LocalDateTime.now());
         return feedbackRepository.save(feedback);
     }
 

@@ -29,6 +29,14 @@ export const updateFeedback = async (id, message, rating) => {
     return response.data;
 };
 
+export const replyToFeedback = async (id, reply) => {
+    const params = new URLSearchParams();
+    params.append('reply', reply);
+
+    const response = await api.put(`/feedback/${id}/reply`, params);
+    return response.data;
+};
+
 export const deleteFeedback = async (id) => {
     const response = await api.delete(`/feedback/${id}`);
     return response.data;

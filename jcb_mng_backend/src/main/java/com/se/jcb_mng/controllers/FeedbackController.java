@@ -76,6 +76,21 @@ public class FeedbackController {
         }
     }
 
+    @PutMapping("/{id}/reply")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> replyToFeedback(
+            Authentication authentication,
+            @PathVariable Long id,
+            @RequestParam String reply) {
+        try {
+            Feedback feedback = feedbackService.replyToFeedback(
+                    id, authentication.getName(), reply);
+            return ResponseEntity.ok(toResponse(feedback));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> deleteFeedback(@PathVariable Long id) {
@@ -96,7 +111,10 @@ public class FeedbackController {
                     + " (" + feedback.getBooking().getMachine().getModelName() + ")",
                 feedback.getMessage(),
                 feedback.getRating(),
-                feedback.getSubmittedAt());
+                feedback.getSubmittedAt(),
+                feedback.getAdminReply(),
+                feedback.getRepliedBy() == null ? null : feedback.getRepliedBy().getUsername(),
+                feedback.getRepliedAt());
     }
 
     public record FeedbackResponse(
@@ -106,6 +124,9 @@ public class FeedbackController {
             String machineDetails,
             String message,
             Integer rating,
-            LocalDateTime submittedAt) {
+            LocalDateTime submittedAt,
+            String reply,
+            String repliedBy,
+            LocalDateTime repliedAt) {
     }
 }

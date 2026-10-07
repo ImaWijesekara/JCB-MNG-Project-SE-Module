@@ -1,6 +1,6 @@
 import { useState, useEffect, useContext, useMemo } from 'react';
 import { AuthContext } from '../context/AuthContext';
-import { submitFeedback, getAllFeedback, getMyFeedback, deleteFeedback } from '../services/feedbackService';
+import { submitFeedback, getAllFeedback, getMyFeedback, replyToFeedback, deleteFeedback } from '../services/feedbackService';
 import { getMyBookings } from '../services/bookingService';
 
 const FeedbackManager = () => {
@@ -18,6 +18,8 @@ const FeedbackManager = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [deletingId, setDeletingId] = useState(null);
+    const [replyingId, setReplyingId] = useState(null);
+    const [replyDrafts, setReplyDrafts] = useState({});
     const [commentError, setCommentError] = useState('');
     
     // Form State for Customers
@@ -54,7 +56,8 @@ const FeedbackManager = () => {
             const searchLower = searchTerm.toLowerCase();
             const customerName = (f.username || f.customerName || '').toLowerCase();
             const message = (f.message || f.comment || '').toLowerCase();
-            return customerName.includes(searchLower) || message.includes(searchLower);
+            const reply = (f.reply || '').toLowerCase();
+            return customerName.includes(searchLower) || message.includes(searchLower) || reply.includes(searchLower);
         });
     }, [feedbacks, searchTerm]);
 
@@ -106,6 +109,36 @@ const FeedbackManager = () => {
             } finally {
                 setDeletingId(null);
             }
+        }
+    };
+
+    const handleReply = async (e, feedback) => {
+        e.preventDefault();
+        const reply = (replyDrafts[feedback.id] ?? feedback.reply ?? '').trim();
+        if (!reply) {
+            setError('Please enter a reply before saving.');
+            return;
+        }
+        if (reply.length > 1000) {
+            setError('Replies must not exceed 1000 characters.');
+            return;
+        }
+
+        setError('');
+        setSuccess('');
+        setReplyingId(feedback.id);
+        try {
+            const updatedFeedback = await replyToFeedback(feedback.id, reply);
+            setFeedbacks((current) => current.map((item) =>
+                item.id === feedback.id ? updatedFeedback : item
+            ));
+            setReplyDrafts((current) => ({ ...current, [feedback.id]: updatedFeedback.reply }));
+            setSuccess('Your reply has been saved and is visible to the customer.');
+            setTimeout(() => setSuccess(''), 4000);
+        } catch (err) {
+            setError(err.response?.data || 'Failed to save your reply.');
+        } finally {
+            setReplyingId(null);
         }
     };
 
@@ -282,6 +315,7 @@ const FeedbackManager = () => {
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">JCB</th>
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Rating</th>
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Comment</th>
+                                <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Response</th>
                                 <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider">Date</th>
                                 {user?.role === 'ADMIN' && <th className="px-6 py-4 text-xs font-bold text-jcb-textMuted uppercase tracking-wider text-right">Actions</th>}
                             </tr>
@@ -289,7 +323,7 @@ const FeedbackManager = () => {
                         <tbody className="divide-y divide-gray-100">
                             {isLoading ? (
                                 <tr>
-                                    <td colSpan={user?.role === 'ADMIN' ? 7 : 5} className="px-6 py-12 text-center text-jcb-textMuted">
+                                    <td colSpan={user?.role === 'ADMIN' ? 8 : 6} className="px-6 py-12 text-center text-jcb-textMuted">
                                         <div className="flex flex-col items-center justify-center">
                                             <svg className="animate-spin h-8 w-8 text-gray-300 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                                             <span className="font-medium">Loading feedback records...</span>
@@ -298,7 +332,7 @@ const FeedbackManager = () => {
                                 </tr>
                             ) : filteredFeedbacks.length === 0 ? (
                                 <tr>
-                                    <td colSpan={user?.role === 'ADMIN' ? 7 : 5} className="px-6 py-12 text-center text-jcb-textMuted">
+                                    <td colSpan={user?.role === 'ADMIN' ? 8 : 6} className="px-6 py-12 text-center text-jcb-textMuted">
                                         <div className="flex flex-col items-center justify-center">
                                             <div className="bg-gray-50 p-3 rounded-full mb-3">
                                                 <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
@@ -317,6 +351,49 @@ const FeedbackManager = () => {
                                     </td>
                                     <td className="px-6 py-4 text-jcb-textMain max-w-xs truncate" title={f.message || f.comment}>
                                         {f.message || f.comment}
+                                    </td>
+                                    <td className="px-6 py-4 min-w-72 whitespace-normal">
+                                        {user?.role === 'ADMIN' ? (
+                                            <form onSubmit={(e) => handleReply(e, f)} className="space-y-2">
+                                                <textarea
+                                                    value={replyDrafts[f.id] ?? f.reply ?? ''}
+                                                    onChange={(e) => setReplyDrafts((current) => ({
+                                                        ...current,
+                                                        [f.id]: e.target.value
+                                                    }))}
+                                                    maxLength={1000}
+                                                    rows="2"
+                                                    aria-label={`Reply to feedback ${f.id}`}
+                                                    placeholder="Write a reply visible to the customer..."
+                                                    className="w-full min-w-64 px-3 py-2 bg-white border border-jcb-border rounded-lg text-sm text-jcb-textMain focus:outline-none focus:ring-2 focus:ring-jcb-brand/50 resize-y"
+                                                />
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <span className="text-xs text-jcb-textMuted">
+                                                        {replyDrafts[f.id] !== undefined
+                                                            ? replyDrafts[f.id].length
+                                                            : (f.reply || '').length}/1000
+                                                        {f.repliedBy ? ` · Last replied by ${f.repliedBy}` : ''}
+                                                    </span>
+                                                    <button
+                                                        type="submit"
+                                                        disabled={replyingId === f.id}
+                                                        className="px-3 py-1.5 rounded-md bg-jcb-brand text-black text-xs font-bold hover:bg-yellow-400 disabled:opacity-50"
+                                                    >
+                                                        {replyingId === f.id ? 'Saving...' : f.reply ? 'Update reply' : 'Send reply'}
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        ) : f.reply ? (
+                                            <div className="space-y-1">
+                                                <p className="text-jcb-textMain">{f.reply}</p>
+                                                <p className="text-xs text-jcb-textMuted">
+                                                    Reply from {f.repliedBy || 'JCB Management'}
+                                                    {f.repliedAt && ` · ${new Date(f.repliedAt).toLocaleDateString()}`}
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <span className="text-xs text-jcb-textMuted">No response yet</span>
+                                        )}
                                     </td>
                                     <td className="px-6 py-4 text-jcb-textMuted">
                                         {new Date(f.submittedAt || f.date || new Date()).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
